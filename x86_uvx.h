@@ -60,12 +60,12 @@
   *             uv_storeu_f32(d + offset, uv_mul_f32(d_vec, s_vec));
   *         }
   *     }
+  *     uv_clear_lanes();
+  *
   *     for (; i < size; ++i) {
   *         d[i] *= s[i];
   *     }
   *     #undef UNROLL_FACTOR
-  *
-  *     uv_clear_lanes();
   * }
   */
 
