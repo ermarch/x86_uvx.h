@@ -60,12 +60,12 @@
   *             uv_storeu_f32(d + offset, uv_mul_f32(d_vec, s_vec));
   *         }
   *     }
-  *     uv_clear_lanes();
-  *
   *     for (; i < size; ++i) {
   *         d[i] *= s[i];
   *     }
   *     #undef UNROLL_FACTOR
+  *
+  *     uv_clear_lanes();
   * }
   */
 
@@ -87,6 +87,8 @@
 #define uv_lanes64()             UV_LANES_F64
 #define uv_registers()           UV_REGISTERS
 
+#define MAX_UV_REGISTERS         32
+#define MAX_UV_LANES             16
 
 #if defined(__AVX10__)
   #if defined(__EVEX512__) || (defined(__AVX10_MAX_VEC_LEN__) && __AVX10_MAX_VEC_LEN__ >= 512)
