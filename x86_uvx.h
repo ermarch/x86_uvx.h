@@ -32,7 +32,7 @@
  * @license   MIT License
  */
 
-#define __UVX_1__  1
+#define __UVX_0__
 
  /***
   * Example use:
@@ -87,8 +87,11 @@
 #define uv_lanes64()             UV_LANES_F64
 #define uv_registers()           UV_REGISTERS
 
-#define MAX_UV_REGISTERS         32
-#define MAX_UV_LANES             16
+#define UV_MAX_REGISTERS         32
+#define UV_MAX_LANES             16
+
+#define UV_ALIGNMENT             UV_LANES_I8
+#define UV_MEMMASK               (UV_ALIGNMENT-1)
 
 #if defined(__AVX10__)
   #if defined(__EVEX512__) || (defined(__AVX10_MAX_VEC_LEN__) && __AVX10_MAX_VEC_LEN__ >= 512)
