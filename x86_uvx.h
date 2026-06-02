@@ -1,6 +1,3 @@
-#ifndef UVX_SIMD_H
-#define UVX_SIMD_H
-
 /**
  * @file      x86_uv.h
  * @brief     Unified Vector intrinsics.
@@ -32,9 +29,12 @@
  * @license   MIT License
  */
 
+#ifndef UVX_SIMD_H
+#define UVX_SIMD_H
+
 #define __UVX_0__
 
- /***
+ /**
   * Example use:
   * - UNROLL_FACTOR establishes unroll depth dynamically from physical hardware
   *   register limits.
@@ -69,7 +69,9 @@
   * }
   */
 
-#include <immintrin.h>
+#if (defined(__x86_64__) || defined(__i386__))
+# include <immintrin.h>
+#endif
 #include <stdint.h>
 #include <stddef.h>
 #include <math.h>
@@ -77,6 +79,12 @@
 /*
  * Globals
  */
+#define UV_ALIGNMENT             UV_LANES_I8
+#define UV_ALIGNMENT_MASK        (UV_ALIGNMENT-1)
+
+#define UV_MAX_LANES             16
+#define UV_MAX_REGISTERS         32
+
 #define UV_HINT_T0               _MM_HINT_T0   // Fetch into L1 Cache
 #define UV_HINT_T1               _MM_HINT_T1   // Fetch into L2 Cache
 #define UV_HINT_T2               _MM_HINT_T2   // Fetch into L3 Cache
@@ -87,11 +95,6 @@
 #define uv_lanes64()             UV_LANES_F64
 #define uv_registers()           UV_REGISTERS
 
-#define UV_MAX_REGISTERS         32
-#define UV_MAX_LANES             16
-
-#define UV_ALIGNMENT             UV_LANES_I8
-#define UV_MEMMASK               (UV_ALIGNMENT-1)
 
 #if defined(__AVX10__)
   #if defined(__EVEX512__) || (defined(__AVX10_MAX_VEC_LEN__) && __AVX10_MAX_VEC_LEN__ >= 512)
@@ -99,9 +102,12 @@
 
     typedef __mmask16 uv_mask;
     typedef __mmask32 uv_mask8;
-    typedef __m512  v_f32;
-    typedef __m512i v_i32;
+
     typedef __m512d v_f64;
+    typedef __m512  v_f32;
+
+    typedef __m512i v_i32;
+    typedef __m512i v_i16;
     typedef __m512i v_i8;
 
     #define UV_LANES     16
@@ -113,10 +119,13 @@
     #define UV_REGISTERS 16
 
     typedef __mmask8  uv_mask;
-     typedef __m256i uv_mask_i8;
-    typedef __m256  v_f32;
-    typedef __m256i v_i32;
+    typedef __m256i uv_mask_i8;
+
     typedef __m256d v_f64;
+    typedef __m256  v_f32;
+
+    typedef __m256i v_i32;
+    typedef __m256i v_i16;
     typedef __m256i v_i8;
 
     #define UV_LANES      8
@@ -131,9 +140,12 @@
 
   typedef __mmask16 uv_mask;
   typedef __mmask64 uv_mask8;
-  typedef __m512  v_f32;
-  typedef __m512i v_i32;
+
   typedef __m512d v_f64;
+  typedef __m512  v_f32;
+
+  typedef __m512i v_i32;
+  typedef __m512i v_i16;
   typedef __m512i v_i8;
 
   #define UV_LANES     16
@@ -147,9 +159,12 @@
 
   typedef __m256  uv_mask;
   typedef __m256i uv_mask_i8;
-  typedef __m256  v_f32;
-  typedef __m256i v_i32;
+
   typedef __m256d v_f64;
+  typedef __m256  v_f32;
+
+  typedef __m256i v_i32;
+  typedef __m256i v_i16;
   typedef __m256i v_i8;
 
   #define UV_LANES        8
@@ -167,9 +182,12 @@
 
   typedef __m128  uv_mask;
   typedef __m128i uv_mask_i8;
-  typedef __m128  v_f32;
-  typedef __m128i v_i32;
+
   typedef __m128d v_f64;
+  typedef __m128  v_f32;
+
+  typedef __m128i v_i32;
+  typedef __m128i v_i16;
   typedef __m128i v_i8;
 
   #define UV_LANES        4
@@ -183,9 +201,12 @@
 
   typedef int     uv_mask;
   typedef int     uv_mask_i8;
-  typedef float   v_f32;
-  typedef int32_t v_i32;
+
   typedef double  v_f64;
+  typedef float   v_f32;
+
+  typedef int32_t v_i32;
+  typedef int16_t v_i16;
   typedef int8_t  v_i8;
 
   #define UV_LANES        1
@@ -505,6 +526,58 @@
   #define uv_shl_i32(v, imm)     _mm512_slli_epi32(v, imm)
   #define uv_shr_i32(v, imm)     _mm512_srai_epi32(v, imm)
 
+  static inline v_i32 uv_cvt_i16_i32(v_i32 a) {
+    __m256i low_half = _mm512_castsi512_si256(a);
+    return _mm512_cvtepi16_epi32(low_half);
+  }
+
+  static inline v_i32 uv_cvt_i32_i16(v_i32 a) {
+    #if defined(__AVX512VL__)
+        __m256i packed = _mm512_cvtepi32_epi16(a);
+        return _mm512_castsi256_si512(packed);
+    #else
+        __m512i low_bits = _mm512_and_si512(a, _mm512_set1_epi32(0xFFFF));
+        __m512i shifted = _mm512_srli_epi32(low_bits, 16);
+
+        ALIGN float tmp[16];
+        _mm512_store_ps(tmp, (_mm512_castsi512_ps(a)));
+        int32_t *itmp = (int32_t*)tmp;
+        int16_t *otmp = (int16_t*)tmp;
+        for (int i = 0; i < 16; ++i) {
+            otmp[i] = (int16_t)itmp[i];
+        }
+        return _mm512_castps_si512(_mm512_load_ps(tmp));
+    #endif
+  }
+
+  static inline v_i32 uv_cvt_i8_i32(v_i32 a) {
+    __m128i low_quarter = _mm512_castsi512_si128(a);
+    return _mm512_cvtepi8_epi32(low_quarter);
+  }
+
+  static inline v_i32 uv_cvt_i32_i8(v_i32 a) {
+    #if defined(__AVX512VL__)
+        __m128i packed = _mm512_cvtepi32_epi8(a);
+        return _mm512_castsi128_si512(packed);
+    #else
+        ALIGN float tmp[16];
+        _mm512_store_ps(tmp, _mm512_castsi512_ps(a));
+
+        int32_t *src_ptr = (int32_t*)tmp;
+        int8_t  *dst_ptr = (int8_t*)tmp;
+
+        for (int i = 0; i < 16; ++i) {
+            dst_ptr[i] = (int8_t)src_ptr[i];
+        }
+
+        for (int i = 16; i < 64; ++i) {
+            dst_ptr[i] = 0;
+        }
+
+        return _mm512_castps_si512(_mm512_load_ps(tmp));
+    #endif
+  }
+
 #elif defined(__FMA__) || defined(__AVX2__)
   #define uv_load_i32(ptr)       _mm256_load_si256((__m256i const*)(ptr))
   #define uv_loadu_i32(ptr)      _mm256_loadu_si256((__m256i const*)(ptr))
@@ -526,6 +599,28 @@
 
   #define uv_shl_i32(v, imm)     _mm256_slli_epi32(v, imm)
   #define uv_shr_i32(v, imm)     _mm256_srai_epi32(v, imm)
+
+  static inline v_i32 uv_cvt_i16_i32(v_i32 a) {
+    return _mm256_cvtepi16_epi32(_mm256_castsi256_si128(a));
+  }
+
+  static inline v_i32 uv_cvt_i32_i16(v_i32 a) {
+    __m256i packed = _mm256_packs_epi32(a, _mm256_setzero_si256());
+    return _mm256_permute4x64_epi64(packed, _MM_SHUFFLE(3, 1, 2, 0));
+  }
+
+  static inline v_i32 uv_cvt_i8_i32(v_i32 a) {
+    return _mm256_cvtepi8_epi32(_mm256_castsi256_si128(a));
+  }
+
+  static inline v_i32 uv_cvt_i32_i8(v_i32 a) {
+    __m256i packed16 = _mm256_packs_epi32(a, _mm256_setzero_si256());
+    packed16 = _mm256_permute4x64_epi64(packed16, _MM_SHUFFLE(3, 1, 2, 0));
+
+    __m128i low16  = _mm256_castsi256_si128(packed16);
+    __m128i packed8 = _mm_packs_epi16(low16, _mm_setzero_si128());
+    return _mm256_castsi128_si256(packed8);
+  }
 
 #elif defined(__SSE2__)
   #define uv_load_i32(ptr)       _mm_load_si128((__m128i const*)(ptr))
@@ -556,6 +651,26 @@
   #define uv_shl_i32(v, imm)     _mm_slli_epi32(v, imm)
   #define uv_shr_i32(v, imm)     _mm_srai_epi32(v, imm)
 
+  static inline v_i32 uv_cvt_i16_i32(v_i32 a) {
+    __m128i low_sign = _mm_unpacklo_epi16(a, a);
+    return _mm_srai_epi32(low_sign, 16);
+  }
+
+  static inline v_i32 uv_cvt_i32_i16(v_i32 a) {
+    return _mm_packs_epi32(a, _mm_setzero_si128());
+  }
+
+  static inline v_i32 uv_cvt_i8_i32(v_i32 a) {
+    __m128i low_bytes = _mm_unpacklo_epi8(a, a);
+    __m128i low_words = _mm_unpacklo_epi16(low_bytes, low_bytes);
+    return _mm_srai_epi32(low_words, 24);
+  }
+
+  static inline v_i32 uv_cvt_i32_i8(v_i32 a) {
+    __m128i packed16 = _mm_packs_epi32(a, _mm_setzero_si128());
+    return _mm_packs_epi16(packed16, _mm_setzero_si128());
+  }
+
 #else
   #define uv_load_i32(ptr)       (*(const int32_t*)(ptr))
   #define uv_loadu_i32(ptr)      (*(const int32_t*)(ptr))
@@ -577,6 +692,22 @@
 
   #define uv_shl_i32(v, imm)     ((v) << (imm))
   #define uv_shr_i32(v, imm)     ((v) >> (imm))
+
+  static inline int32_t uv_cvt_i16_i32(int32_t a) {
+    return (int32_t)((int16_t)a);
+  }
+
+  static inline int32_t uv_cvt_i32_i16(int32_t a) {
+    return (int32_t)((int16_t)a);
+  }
+
+  static inline int32_t uv_cvt_i8_i32(int32_t a) {
+    return (int32_t)((int8_t)a);
+  }
+
+  static inline int32_t uv_cvt_i32_i8(int32_t a) {
+    return (int32_t)((int8_t)a);
+  }
 
 #endif
 
@@ -637,10 +768,10 @@
       __m256i a_high = _mm512_extracti64x4_epi64(a, 1);
       __m256i b_low  = _mm512_castsi512_si256(b);
       __m256i b_high = _mm512_extracti64x4_epi64(b, 1);
-      
+
       __m256i r_low  = _mm256_shuffle_epi8(a_low, b_low);
       __m256i r_high = _mm256_shuffle_epi8(a_high, b_high);
-      
+
       return _mm512_inserti64x4(_mm512_castsi256_si512(r_low), r_high, 1);
     }
 
@@ -735,10 +866,10 @@
   static inline __m256i uv_permutexvar_i8(__m256i idx, __m256i a) {
     __m256i low_a  = _mm256_permute2x128_si256(a, a, 0x00); // [Low, Low]
     __m256i high_a = _mm256_permute2x128_si256(a, a, 0x11); // [High, High]
-    
+
     __m256i shuffled_low  = _mm256_shuffle_epi8(low_a, idx);
     __m256i shuffled_high = _mm256_shuffle_epi8(high_a, idx);
-    
+
     __m256i lane_select   = _mm256_slli_epi32(idx, 3);
     return _mm256_blendv_epi8(shuffled_low, shuffled_high, lane_select);
   }
