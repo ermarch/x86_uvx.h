@@ -249,6 +249,8 @@
   #define uv_cvt_f32_i32(v)      _mm512_cvtps_epi32(v)
   #define uv_cvt_i32_f32(v)      _mm512_cvtepi32_ps(v)
 
+  #define uv_reduce_add_f32(v)   _mm512_reduce_add_ps(v)
+
 #elif defined (__FMA__) || defined(__AVX2__)
   #define uv_load_f32(ptr)       _mm256_load_ps(ptr)
   #define uv_loadu_f32(ptr)      _mm256_loadu_ps(ptr)
@@ -279,6 +281,16 @@
 
   #define uv_cvt_f32_i32(v)      _mm256_cvtps_epi32(v)
   #define uv_cvt_i32_f32(v)      _mm256_cvtepi32_ps(v)
+
+  inline float uv_reduce_add_f32(__m256 v)
+  {
+    __m128 vlow  = _mm256_castps256_ps128(v);
+    __m128 vhigh = _mm256_extractf128_ps(v, 1);
+    __m128 sums  = _mm_add_ps(vlow, vhigh);
+    sums = _mm_hadd_ps(sums, sums);
+    sums = _mm_hadd_ps(sums, sums);
+    return _mm_cvtss_f32(sums);
+  }
 
 #elif defined(__SSE2__)
 
@@ -311,6 +323,15 @@
 
   #define uv_cvt_f32_i32(v)      _mm_cvtps_epi32(v)
   #define uv_cvt_i32_f32(v)      _mm_cvtepi32_ps(v)
+
+  inline float uv_reduce_add_f32(__m128 v)
+  {
+    __m128 shuf = _mm_shuffle_ps(v, v, _MM_SHUFFLE(2, 3, 0, 1));
+    __m128 sums = _mm_add_ps(v, shuf);
+    shuf = _mm_movehl_ps(shuf, sums);
+    sums = _mm_add_ss(sums, shuf);
+    return _mm_cvtss_f32(sums);
+  }
 
 #else
   #define uv_load_f32(ptr)       (*(const float*)(ptr))
@@ -358,6 +379,8 @@
 
   #define uv_cvt_f32_i32(v)      ((int32_t)(v))
   #define uv_cvt_i32_f32(v)      ((float)(v))
+
+  #define uv_reduce_add_f32(a)   (a)
 
 #endif
 
