@@ -633,8 +633,19 @@
   #define uv_add_i32(a, b)       _mm_add_epi32(a, b)
   #define uv_sub_i32(a, b)       _mm_sub_epi32(a, b)
   #define uv_mul_i32(a, b)       _mm_mullo_epi32(a, b)
-  #define uv_max_i32(a, b)       _mm_max_epi32(a, b)
-  #define uv_min_i32(a, b)       _mm_min_epi32(a, b)
+  #if defined(__SSE4_1__)
+    #define uv_max_i32(a, b)     _mm_max_epi32(a, b)
+    #define uv_min_i32(a, b)     _mm_min_epi32(a, b)
+  #else
+    static inline __m128i uv_max_i32(__m128i a, __m128i b) {
+      return  _mm_or_si128(_mm_and_si128(_mm_cmpgt_epi32(a, b), a),
+                           _mm_andnot_si128(_mm_cmpgt_epi32(a, b), b));
+    }
+    static inline __m128i uv_min_i32(__m128i a, __m128i b) {
+      return _mm_or_si128(_mm_and_si128(_mm_cmpgt_epi32(b, a), a),
+                          _mm_andnot_si128(_mm_cmpgt_epi32(b, a), b));
+    }
+  #endif
   #if defined(__SSSE3__)
     #define uv_abs_i32(v)        _mm_abs_epi32(v)
   #else
