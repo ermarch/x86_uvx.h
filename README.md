@@ -80,7 +80,7 @@ All functions are overloaded per data type and automatically scale to the availa
 - `uv_popcnt_u64()`, `uv_tzcnt_u64()`, `uv_lzcnt_u64()`
 
 ### Utility
-- `uv_lanes()`, `uv_lanes64()`, `uv_registers()`
+- `uv_lanes()`, `uv_registers()`
 - `uv_clear_lanes()`
 - `uv_alignment()`, `uv_alignment_mask()`
 - `uv_prefetch(ptr, hint)`
@@ -95,10 +95,10 @@ void buffer_multiply(float *dest, const float *src, size_t size)
     size_t i = 0;
 
     #define UNROLL_FACTOR (uv_registers() >= 16 ? (uv_registers() / 4) : 2)
-    const size_t block_step = UNROLL_FACTOR * uv_lanes();
+    const size_t block_step = UNROLL_FACTOR * uv_lanes(32);
     for (; i + block_step <= size; i += block_step) {
         for (size_t u = 0; u < UNROLL_FACTOR; ++u) {
-            size_t offset = i + (u * uv_lanes());
+            size_t offset = i + (u * uv_lanes(32));
 
             v_f32 s_vec = uv_loadu_f32(src + offset);
             v_f32 d_vec = uv_loadu_f32(dest + offset);
