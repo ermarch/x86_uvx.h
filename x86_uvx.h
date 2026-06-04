@@ -10,14 +10,14 @@
  *
  *            Instead of hardcoding register widths, algorithms use abstract
  *            vector types and scale automatically via the compile-time constant
- *            `UV_LANES`. The implementation resolves completely at compile time
- *            via macro inlining with zero runtime abstraction overhead.
+ *            `UV_LANES_32`. The implementation resolves completely at compile
+ *            time via macro inlining with zero runtime abstraction overhead.
  *
  * @note      Supported Target Levels:
- *            - LEVEL 3: AVX-512 (512-bit registers, UV_LANES = 16 for f32/i32)
- *            - LEVEL 2: AVX2    (256-bit registers, UV_LANES = 8  for f32/i32)
- *            - LEVEL 1: SSE2    (128-bit registers, UV_LANES = 4  for f32/i32)
- *            - LEVEL 0:         (Scalar Fallback,   UV_LANES = 1  for f32/i32)
+ *            - LEVEL 3: AVX-512 (512-bit registers, UV_LANES_32 = 16 for f32)
+ *            - LEVEL 2: AVX2    (256-bit registers, UV_LANES_32 = 8  for f32)
+ *            - LEVEL 1: SSE2    (128-bit registers, UV_LANES_32 = 4  for f32)
+ *            - LEVEL 0:         (Scalar Fallback,   UV_LANES_32 = 1  for f32)
  *
  * @attention Requirements:
  *            Must be compiled with minimum `-msse2` flag. Target upscaling is
@@ -50,10 +50,10 @@
   *     size_t i = 0;
   *
   *     #define UNROLL_FACTOR (uv_registers() >= 16 ? (uv_registers() / 4) : 2)
-  *     const size_t block_step = UNROLL_FACTOR * uv_lanes();
+  *     const size_t block_step = UNROLL_FACTOR * uv_lanes(32);
   *     for (; i + block_step <= size; i += block_step) {
   *         for (size_t u = 0; u < UNROLL_FACTOR; ++u) {
-  *             size_t offset = i + (u * uv_lanes());
+  *             size_t offset = i + (u * uv_lanes(32));
   *
   *             v_f32 s_vec = uv_loadu_f32(s + offset);
   *             v_f32 d_vec = uv_loadu_f32(d + offset);
@@ -72,6 +72,7 @@
 #if (defined(__x86_64__) || defined(__i386__))
 # include <immintrin.h>
 #endif
+#include <stdalign.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <math.h>
@@ -79,11 +80,15 @@
 /*
  * Globals
  */
-#define UV_ALIGNMENT             UV_LANES_I8
+#define UV_ALIGNMENT             UV_LANES_8
 #define UV_ALIGNMENT_MASK        (UV_ALIGNMENT-1)
 
 #define UV_MAX_LANES             16
 #define UV_MAX_REGISTERS         32
+#define UV_LANES_8               (UV_REGISTER_WIDTH/8)
+#define UV_LANES_16              (UV_REGISTER_WIDTH/16)
+#define UV_LANES_32              (UV_REGISTER_WIDTH/32)
+#define UV_LANES_64              (UV_REGISTER_WIDTH/64)
 
 #define UV_HINT_T0               _MM_HINT_T0   // Fetch into L1 Cache
 #define UV_HINT_T1               _MM_HINT_T1   // Fetch into L2 Cache
@@ -91,14 +96,14 @@
 #define UV_HINT_NTA              _MM_HINT_NTA  // Non-Temporal (Minimize Cache Pollution)
 #define uv_prefetch(ptr, hint)   _mm_prefetch((const char*)(ptr), (hint))
 
-#define uv_lanes()               UV_LANES
-#define uv_lanes64()             UV_LANES_F64
+#define uv_lanes(a)              (UV_REGISTER_WIDTH / (a))
 #define uv_registers()           UV_REGISTERS
 
 
 #if defined(__AVX10__)
   #if defined(__EVEX512__) || (defined(__AVX10_MAX_VEC_LEN__) && __AVX10_MAX_VEC_LEN__ >= 512)
-    #define UV_REGISTERS 32
+    #define UV_REGISTERS        32
+    #define UV_REGISTER_WIDTH  512
 
     typedef __mmask16 uv_mask;
     typedef __mmask32 uv_mask8;
@@ -110,13 +115,10 @@
     typedef __m512i v_i16;
     typedef __m512i v_i8;
 
-    #define UV_LANES     16
-    #define UV_LANES_F64  8
-    #define UV_LANES_I8  64
-
     #define uv_clear_lanes() _mm256_zeroupper()
   #else
-    #define UV_REGISTERS 16
+    #define UV_REGISTERS        16
+    #define UV_REGISTER_WIDTH  256
 
     typedef __mmask8  uv_mask;
     typedef __m256i uv_mask_i8;
@@ -128,15 +130,12 @@
     typedef __m256i v_i16;
     typedef __m256i v_i8;
 
-    #define UV_LANES      8
-    #define UV_LANES_F64  4
-    #define UV_LANES_I8  32
-
     #define uv_clear_lanes() _mm256_zeroupper()
   #endif
 
 #elif defined(__AVX512F__)
-  #define UV_REGISTERS 32
+  #define UV_REGISTERS        32
+  #define UV_REGISTER_WIDTH  512
 
   typedef __mmask16 uv_mask;
   typedef __mmask64 uv_mask8;
@@ -148,14 +147,11 @@
   typedef __m512i v_i16;
   typedef __m512i v_i8;
 
-  #define UV_LANES     16
-  #define UV_LANES_F64  8
-  #define UV_LANES_I8  64
-
   #define uv_clear_lanes() _mm256_zeroupper()
 
 #elif defined(__FMA__) || defined(__AVX2__)
-  #define UV_REGISTERS 16
+  #define UV_REGISTERS        16
+  #define UV_REGISTER_WIDTH  256
 
   typedef __m256  uv_mask;
   typedef __m256i uv_mask_i8;
@@ -167,18 +163,15 @@
   typedef __m256i v_i16;
   typedef __m256i v_i8;
 
-  #define UV_LANES        8
-  #define UV_LANES_F64    4
-  #define UV_LANES_I8    32
-
   #define uv_clear_lanes() _mm256_zeroupper()
 
 #elif defined(__SSE2__)
   #if defined(__i386__) || defined(_M_IX86) || defined(__SSE__)
-    #define UV_REGISTERS  8
+    #define UV_REGISTERS       8
   #else
-    #define UV_REGISTERS 16
+    #define UV_REGISTERS      16
   #endif
+  #define UV_REGISTER_WIDTH  128
 
   typedef __m128  uv_mask;
   typedef __m128i uv_mask_i8;
@@ -190,14 +183,11 @@
   typedef __m128i v_i16;
   typedef __m128i v_i8;
 
-  #define UV_LANES        4
-  #define UV_LANES_F64    2
-  #define UV_LANES_I8    16
-
   #define uv_clear_lanes() ((void)0)
 
 #else
-  #define UV_REGISTERS    1
+  #define UV_REGISTERS         1
+  #define UV_REGISTER_WIDTH    1
 
   typedef int     uv_mask;
   typedef int     uv_mask_i8;
@@ -208,10 +198,6 @@
   typedef int32_t v_i32;
   typedef int16_t v_i16;
   typedef int8_t  v_i8;
-
-  #define UV_LANES        1
-  #define UV_LANES_F64    1
-  #define UV_LANES_I8     1
 
   #define uv_clear_lanes() ((void)0)
 #endif
@@ -562,7 +548,7 @@
         __m512i low_bits = _mm512_and_si512(a, _mm512_set1_epi32(0xFFFF));
         __m512i shifted = _mm512_srli_epi32(low_bits, 16);
 
-        ALIGN float tmp[16];
+        alignas(32) float tmp[16];
         _mm512_store_ps(tmp, (_mm512_castsi512_ps(a)));
         int32_t *itmp = (int32_t*)tmp;
         int16_t *otmp = (int16_t*)tmp;
@@ -583,7 +569,7 @@
         __m128i packed = _mm512_cvtepi32_epi8(a);
         return _mm512_castsi128_si512(packed);
     #else
-        ALIGN float tmp[16];
+        alignas(32) float tmp[16];
         _mm512_store_ps(tmp, _mm512_castsi512_ps(a));
 
         int32_t *src_ptr = (int32_t*)tmp;
