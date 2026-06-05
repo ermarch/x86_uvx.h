@@ -230,7 +230,7 @@
   #define uv_cmplt_f32(a, b)     _mm512_cmp_ps_mask(a, b, 1)
   #define uv_select_f32(m, t, f) _mm512_mask_blend_ps(m, f, t)
 
-  #if defined(__AVX512DQ__)
+  #if defined(__AVX512DQ__) || defined(_MSC_VER)
     #define uv_and_f32(a, b)     _mm512_and_ps(a, b)
     #define uv_andnot_f32(a, b)  _mm512_andnot_ps(a, b)
     #define uv_or_f32(a, b)      _mm512_or_ps(a, b)
