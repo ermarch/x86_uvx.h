@@ -96,6 +96,9 @@
 #define UV_HINT_NTA              _MM_HINT_NTA  // Non-Temporal (Minimize Cache Pollution)
 #define uv_prefetch(ptr, hint)   _mm_prefetch((const char*)(ptr), (hint))
 
+#define uv_alignment()           UV_ALIGNMENT
+#define uv_alignment_mask()      UV_ALIGNMENT_MASK
+
 #define uv_lanes(a)              (UV_REGISTER_WIDTH / (a))
 #define uv_registers()           UV_REGISTERS
 
@@ -227,10 +230,25 @@
   #define uv_cmplt_f32(a, b)     _mm512_cmp_ps_mask(a, b, 1)
   #define uv_select_f32(m, t, f) _mm512_mask_blend_ps(m, f, t)
 
-  #define uv_and_f32(a, b)       _mm512_and_ps(a, b)
-  #define uv_andnot_f32(a, b)    _mm512_andnot_ps(a, b)
-  #define uv_or_f32(a, b)        _mm512_or_ps(a, b)
-  #define uv_xor_f32(a, b)       _mm512_xor_ps(a, b)
+  #if defined(__AVX512DQ__)
+    #define uv_and_f32(a, b)     _mm512_and_ps(a, b)
+    #define uv_andnot_f32(a, b)  _mm512_andnot_ps(a, b)
+    #define uv_or_f32(a, b)      _mm512_or_ps(a, b)
+    #define uv_xor_f32(a, b)     _mm512_xor_ps(a, b)
+  #else
+    inline __m512 uv_and_f32(__m512 a, __m512 b) {
+      return _mm512_castsi512_ps(_mm512_and_si512(_mm512_castps_si512(a), _mm512_castps_si512(b)));
+    }
+    inline __m512 uv_andnot_f32(__m512 a, __m512 b) {
+      return _mm512_castsi512_ps(_mm512_andnot_si512(_mm512_castps_si512(a), _mm512_castps_si512(b)));
+    }
+    inline __m512 uv_or_f32(__m512 a, __m512 b) {
+      return _mm512_castsi512_ps(_mm512_or_si512(_mm512_castps_si512(a), _mm512_castps_si512(b)));
+    }
+    inline __m512 uv_xor_f32(__m512 a, __m512 b) {
+      return _mm512_castsi512_ps(_mm512_xor_si512(_mm512_castps_si512(a), _mm512_castps_si512(b)));
+    }
+  #endif
 
   #define uv_cvt_f32_i32(v)      _mm512_cvtps_epi32(v)
   #define uv_cvt_i32_f32(v)      _mm512_cvtepi32_ps(v)
@@ -541,7 +559,7 @@
   }
 
   static inline v_i32 uv_cvt_i32_i16(v_i32 a) {
-    #if defined(__AVX512VL__)
+    #if defined(__AVX512VL__) || defined(_MSC_VER)
         __m256i packed = _mm512_cvtepi32_epi16(a);
         return _mm512_castsi256_si512(packed);
     #else
@@ -565,7 +583,7 @@
   }
 
   static inline v_i32 uv_cvt_i32_i8(v_i32 a) {
-    #if defined(__AVX512VL__)
+    #if defined(__AVX512VL__) || defined(_MSC_VER)
         __m128i packed = _mm512_cvtepi32_epi8(a);
         return _mm512_castsi128_si512(packed);
     #else
@@ -773,7 +791,7 @@
   #define uv_store_i8(ptr, v)    _mm512_store_si512((__m512i*)(ptr), (v))
   #define uv_storeu_i8(ptr, v)   _mm512_storeu_si512((__m512i*)(ptr), (v))
 
-  #if defined(__AVX512BW__)
+  #if defined(__AVX512BW__) || defined(_MSC_VER)
     #define uv_cmpeq_i8(a, b)    _mm512_cmpeq_epi8_mask(a, b)
     #define uv_cmplt_i8(a, b)    _mm512_cmplt_epi8_mask(a, b)
 
@@ -854,7 +872,7 @@
     }
   #endif
 
-  #if defined(__AVX512VBMI2__)
+  #if defined(__AVX512VBMI2__) || defined(_MSC_VER)
     #define uv_compress_i8(mask, a)  _mm512_maskz_compress_epi8(mask, a)
 
   // Baseline AVX-512F requires this inline macro mapping fallback:
