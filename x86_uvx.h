@@ -88,7 +88,7 @@
 #define UV_LANES_8               (UV_REGISTER_WIDTH/8)
 #define UV_LANES_16              (UV_REGISTER_WIDTH/16)
 #define UV_LANES_32              (UV_REGISTER_WIDTH/32)
-#define UV_LANES_64              (UV_REGISTER_WIDTH/64)
+#define UV_LANES_64              ((UV_REGISTER_WIDTH >= 64) ? (UV_REGISTER_WIDTH/64) : 1)
 
 #define UV_HINT_T0               _MM_HINT_T0   // Fetch into L1 Cache
 #define UV_HINT_T1               _MM_HINT_T1   // Fetch into L2 Cache
@@ -189,8 +189,8 @@
   #define uv_clear_lanes() ((void)0)
 
 #else
-  #define UV_REGISTERS         1
-  #define UV_REGISTER_WIDTH    1
+  #define UV_REGISTERS          1
+  #define UV_REGISTER_WIDTH    32
 
   typedef int     uv_mask;
   typedef int     uv_mask_i8;
