@@ -32,8 +32,10 @@ void print_current_target(void) {
 #else
     printf("Detected Target: LEVEL 0 - Scalar Fallback\n");
 #endif
-    printf("Config Invariants: UV_LANES_64=%d, UV_LANES_32=%d, UV_LANES_16=%d, UV_LANES_8=%d\n\t\t   UV_REGISTERS=%d\n",
-           uv_lanes(64), uv_lanes(32), uv_lanes(16), uv_lanes(8), uv_registers());
+    printf("Config Invariants: UV_LANES_64=%d, UV_LANES_32=%d, UV_LANES_16=%d, UV_LANES_8=%d\n",
+           uv_lanes(64), uv_lanes(32), uv_lanes(16), uv_lanes(8));
+    printf("\t\t   UV_ALIGNMENT=%d, UV_REGISTERS=%d\n",
+           uv_alignment(), uv_registers());
     printf("====================================================\n\n");
 }
 

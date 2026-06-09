@@ -85,10 +85,6 @@
 
 #define UV_MAX_LANES             16
 #define UV_MAX_REGISTERS         32
-#define UV_LANES_8               (UV_REGISTER_WIDTH/8)
-#define UV_LANES_16              (UV_REGISTER_WIDTH/16)
-#define UV_LANES_32              (UV_REGISTER_WIDTH/32)
-#define UV_LANES_64              ((UV_REGISTER_WIDTH >= 64) ? (UV_REGISTER_WIDTH/64) : 1)
 
 #define UV_HINT_T0               _MM_HINT_T0   // Fetch into L1 Cache
 #define UV_HINT_T1               _MM_HINT_T1   // Fetch into L2 Cache
@@ -99,7 +95,7 @@
 #define uv_alignment()           UV_ALIGNMENT
 #define uv_alignment_mask()      UV_ALIGNMENT_MASK
 
-#define uv_lanes(a)              (UV_REGISTER_WIDTH / (a))
+#define uv_lanes(a)              ((UV_REGISTERS > 1) ? (UV_REGISTER_WIDTH / (a)) : 1)
 #define uv_registers()           UV_REGISTERS
 
 
@@ -107,6 +103,11 @@
   #if defined(__EVEX512__) || (defined(__AVX10_MAX_VEC_LEN__) && __AVX10_MAX_VEC_LEN__ >= 512)
     #define UV_REGISTERS        32
     #define UV_REGISTER_WIDTH  512
+
+    #define UV_LANES_8          64
+    #define UV_LANES_16         32
+    #define UV_LANES_32         16
+    #define UV_LANES_64          8
 
     typedef __mmask16 uv_mask;
     typedef __mmask32 uv_mask8;
@@ -122,6 +123,11 @@
   #else
     #define UV_REGISTERS        16
     #define UV_REGISTER_WIDTH  256
+
+    #define UV_LANES_8          32
+    #define UV_LANES_16         16
+    #define UV_LANES_32          8
+    #define UV_LANES_64          4
 
     typedef __mmask8  uv_mask;
     typedef __m256i uv_mask_i8;
@@ -140,6 +146,11 @@
   #define UV_REGISTERS        32
   #define UV_REGISTER_WIDTH  512
 
+  #define UV_LANES_8          64
+  #define UV_LANES_16         32
+  #define UV_LANES_32         16
+  #define UV_LANES_64          8
+
   typedef __mmask16 uv_mask;
   typedef __mmask64 uv_mask8;
 
@@ -155,6 +166,11 @@
 #elif defined(__FMA__) || defined(__AVX2__)
   #define UV_REGISTERS        16
   #define UV_REGISTER_WIDTH  256
+
+  #define UV_LANES_8          32
+  #define UV_LANES_16         16
+  #define UV_LANES_32          8
+  #define UV_LANES_64          4
 
   typedef __m256  uv_mask;
   typedef __m256i uv_mask_i8;
@@ -176,6 +192,11 @@
   #endif
   #define UV_REGISTER_WIDTH  128
 
+  #define UV_LANES_8          16
+  #define UV_LANES_16          8
+  #define UV_LANES_32          4
+  #define UV_LANES_64          2
+
   typedef __m128  uv_mask;
   typedef __m128i uv_mask_i8;
 
@@ -189,8 +210,13 @@
   #define uv_clear_lanes() ((void)0)
 
 #else
-  #define UV_REGISTERS          1
-  #define UV_REGISTER_WIDTH    32
+  #define UV_REGISTERS         1
+  #define UV_REGISTER_WIDTH   32
+
+  #define UV_LANES_8           1
+  #define UV_LANES_16          1
+  #define UV_LANES_32          1
+  #define UV_LANES_64          1
 
   typedef int     uv_mask;
   typedef int     uv_mask_i8;
