@@ -51,8 +51,9 @@ All functions are overloaded per data type and automatically scale to the availa
 
 ### Arithmetic
 - `uv_add_*()`, `uv_sub_*()`, `uv_mul_*()`, `uv_div_*()`
-- `uv_max_*()`, `uv_min_*()`, `uv_abs_i32()`
-- `uv_fma_*()` — Fused multiply-add (with fallback for older CPU features)
+- `uv_max_*()`, `uv_min_*()`, `uv_abs_*()`, `uv_neg_*()`
+- `uv_fmadd_*()` — Fused multiply-add (with fallback for older CPU features)
+- `uv_fmsub_*()` — Fused multiply-sub (with fallback for older CPU features)
 
 ### Comparison
 - `uv_cmpgt_*()`, `uv_cmplt_*()`, `uv_cmpeq_i8()`
