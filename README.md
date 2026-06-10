@@ -69,7 +69,7 @@ All functions are overloaded per data type and automatically scale to the availa
 - `uv_cvt_i16_i32()`, `uv_cvt_i32_i16()`, `uv_cvt_i8_i32()`, `uv_cvt_i32_i8()`
 
 ### Reduction
-- `uv_reduce_add_f32(v)`
+- `uv_reduce_add_f32(v)`, `uv_reduce_min_f32(v)`, `uv_reduce_max_f32(v)`
 
 ### 8-bit Integer Operations
 - `uv_load_i8()`, `uv_store_i8()`

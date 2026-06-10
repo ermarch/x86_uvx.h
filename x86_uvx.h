@@ -255,6 +255,8 @@
   #define uv_cvt_i32_f32(v)      _mm512_cvtepi32_ps(v)
 
   #define uv_reduce_add_f32(v)   _mm512_reduce_add_ps(v)
+  #define uv_reduce_min_f32(v)   _mm512_reduce_min_ps(v)
+  #define uv_reduce_max_f32(v)   _mm512_reduce_max_ps(v)
 
 #elif defined (__FMA__) || defined(__AVX2__)
   #define uv_load_f32(ptr)       _mm256_load_ps(ptr)
@@ -301,6 +303,32 @@
     sums = _mm_hadd_ps(sums, sums);
     return _mm_cvtss_f32(sums);
   }
+  inline float uv_reduce_min_f32(__m256 a)
+  {
+    __m128 low = _mm256_castps256_ps128(a);
+    __m128 high = _mm256_extractf128_ps(a, 1);
+    __m128 min128 = _mm_min_ps(low, high);
+    __m128 shuff1 = _mm_shuffle_ps(min128, min128, _MM_SHUFFLE(2, 3, 0, 1));
+    __m128 min64 = _mm_min_ps(min128, shuff1);
+    __m128 shuff2 = _mm_shuffle_ps(min64, min64, _MM_SHUFFLE(1, 0, 3, 2));
+    __m128 min32 = _mm_min_ps(min64, shuff2);
+    float result;
+    _mm_store_ss(&result, min32);
+    return result;
+  }
+  inline float uv_reduce_max_f32(__m256 a)
+  {
+    __m128 low = _mm256_castps256_ps128(a);
+    __m128 high = _mm256_extractf128_ps(a, 1);
+    __m128 max128 = _mm_max_ps(low, high);
+    __m128 shuff1 = _mm_shuffle_ps(max128, max128, _MM_SHUFFLE(2, 3, 0, 1));
+    __m128 max64 = _mm_max_ps(max128, shuff1);
+    __m128 shuff2 = _mm_shuffle_ps(max64, max64, _MM_SHUFFLE(1, 0, 3, 2));
+    __m128 max32 = _mm_max_ps(max64, shuff2);
+    float result;
+    _mm_store_ss(&result, max32);
+    return result;
+  }
 
 #elif defined(__SSE2__)
 
@@ -346,6 +374,24 @@
     sums = _mm_add_ss(sums, shuf);
     return _mm_cvtss_f32(sums);
   }
+  inline float uv_reduce_min_f32(__m128 a) {
+    __m128 shuff1 = _mm_shuffle_ps(a, a, _MM_SHUFFLE(2, 3, 0, 1));
+    __m128 min64 = _mm_min_ps(a, shuff1);
+    __m128 shuff2 = _mm_shuffle_ps(min64, min64, _MM_SHUFFLE(1, 0, 3, 2));
+    __m128 min32 = _mm_min_ps(min64, shuff2);
+    float result;
+    _mm_store_ss(&result, min32);
+    return result;
+  }
+  inline float uv_reduce_max_f32(__m128 a) {
+    __m128 shuff1 = _mm_shuffle_ps(a, a, _MM_SHUFFLE(2, 3, 0, 1));
+    __m128 max64 = _mm_max_ps(a, shuff1);
+    __m128 shuff2 = _mm_shuffle_ps(max64, max64, _MM_SHUFFLE(1, 0, 3, 2));
+    __m128 max32 = _mm_max_ps(max64, shuff2);
+    float result;
+    _mm_store_ss(&result, max32);
+    return result;
+  }
 
 #else
   #define uv_load_f32(ptr)       (*(const float*)(ptr))
@@ -353,7 +399,7 @@
   #define uv_store_f32(ptr, v)   (*(float*)(ptr) = (v))
   #define uv_storeu_f32(ptr, v)  (*(float*)(ptr) = (v))
   #define uv_setzero_f32()       (0.0f)
-  #define uv_dup_f32(val)        (val)
+  #define uv_dup_f32(v)          (v)
 
   #define uv_add_f32(a, b)       ((a) + (b))
   #define uv_sub_f32(a, b)       ((a) - (b))
@@ -362,7 +408,9 @@
 
   #define uv_max_f32(a, b)       ((a) > (b) ? (a) : (b))
   #define uv_min_f32(a, b)       ((a) < (b) ? (a) : (b))
-    #define uv_abs_f32(a)        (fabsf(a))
+
+  #define uv_abs_f32(a)          (fabsf(a))
+  #define uv_neg_f32(a)          (-(a))
 
   #define uv_cmpgt_f32(a, b)     ((a) > (b))
   #define uv_cmplt_f32(a, b)     ((a) < (b))
@@ -396,6 +444,8 @@
   #define uv_cvt_i32_f32(v)      ((float)(v))
 
   #define uv_reduce_add_f32(a)   (a)
+  #define uv_reduce_min_f32(a)   (a)
+  #define uv_reduce_max_f32(a)   (a)
 
 #endif
 
