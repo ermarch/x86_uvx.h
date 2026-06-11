@@ -12,6 +12,8 @@ ENDFUNCTION()
 
 CREATE_UV_TEST(test_x86_uvx scalar "-mno-sse2")
 CREATE_UV_TEST(test_x86_uvx sse2 "-msse2 -mno-avx -mno-fma")
+CREATE_UV_TEST(test_x86_uvx ssse3 "-mssse3 -mno-avx -mno-fma")
+CREATE_UV_TEST(test_x86_uvx sse4.1 "-msse4.1 -mno-avx -mno-fma")
 CREATE_UV_TEST(test_x86_uvx avx2 "-mavx2 -mno-fma -mno-avx512f")
 CREATE_UV_TEST(test_x86_uvx fma "-mavx2 -mfma -mno-avx512f")
 CREATE_UV_TEST(test_x86_uvx avx512f "-mavx512f")

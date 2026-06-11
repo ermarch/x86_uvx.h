@@ -227,7 +227,7 @@
   #define uv_max_f32(a, b)       _mm512_max_ps(a, b)
   #define uv_min_f32(a, b)       _mm512_min_ps(a, b)
   #define uv_abs_f32(a)          _mm512_abs_ps(a)
-  inline v_f32 uv_neg_f32(v_f32 a) {
+  static inline v_f32 uv_neg_f32(v_f32 a) {
     const __m512i mask = _mm512_set1_epi32((int)0x80000000);
     return _mm512_castsi512_ps(_mm512_xor_epi32(_mm512_castps_si512(a), mask));
   }
@@ -242,16 +242,16 @@
     #define uv_or_f32(a, b)      _mm512_or_ps(a, b)
     #define uv_xor_f32(a, b)     _mm512_xor_ps(a, b)
   #else
-    inline v_f32 uv_and_f32(v_f32 a, v_f32 b) {
+    static inline v_f32 uv_and_f32(v_f32 a, v_f32 b) {
       return _mm512_castsi512_ps(_mm512_and_si512(_mm512_castps_si512(a), _mm512_castps_si512(b)));
     }
-    inline v_f32 uv_andnot_f32(v_f32 a, v_f32 b) {
+    static inline v_f32 uv_andnot_f32(v_f32 a, v_f32 b) {
       return _mm512_castsi512_ps(_mm512_andnot_si512(_mm512_castps_si512(a), _mm512_castps_si512(b)));
     }
-    inline v_f32 uv_or_f32(v_f32 a, v_f32 b) {
+    static inline v_f32 uv_or_f32(v_f32 a, v_f32 b) {
       return _mm512_castsi512_ps(_mm512_or_si512(_mm512_castps_si512(a), _mm512_castps_si512(b)));
     }
-    inline v_f32 uv_xor_f32(v_f32 a, v_f32 b) {
+    static inline v_f32 uv_xor_f32(v_f32 a, v_f32 b) {
       return _mm512_castsi512_ps(_mm512_xor_si512(_mm512_castps_si512(a), _mm512_castps_si512(b)));
     }
   #endif
@@ -277,11 +277,11 @@
   #define uv_div_f32(a, b)       _mm256_div_ps(a, b)
   #define uv_max_f32(a, b)       _mm256_max_ps(a, b)
   #define uv_min_f32(a, b)       _mm256_min_ps(a, b)
-  inline v_f32 uv_abs_f32(v_f32 a) {
+  static inline v_f32 uv_abs_f32(v_f32 a) {
     const __m256 sign_mask = _mm256_set1_ps(-0.0f);
     return _mm256_andnot_ps(sign_mask, a);
   }
-  inline v_f32 uv_neg_f32(v_f32 a) {
+  static inline v_f32 uv_neg_f32(v_f32 a) {
     const __m256 mask = _mm256_castsi256_ps(_mm256_set1_epi32((int)0x80000000));
     return _mm256_xor_ps(a, mask);
   }
@@ -302,7 +302,7 @@
   #define uv_cvt_f32_i32(v)      _mm256_cvtps_epi32(v)
   #define uv_cvt_i32_f32(v)      _mm256_cvtepi32_ps(v)
 
-  inline float uv_reduce_add_f32(v_f32 v)
+  static inline float uv_reduce_add_f32(v_f32 v)
   {
     __m128 vlow  = _mm256_castps256_ps128(v);
     __m128 vhigh = _mm256_extractf128_ps(v, 1);
@@ -311,7 +311,7 @@
     sums = _mm_hadd_ps(sums, sums);
     return _mm_cvtss_f32(sums);
   }
-  inline float uv_reduce_min_f32(v_f32 a)
+  static inline float uv_reduce_min_f32(v_f32 a)
   {
     __m128 low = _mm256_castps256_ps128(a);
     __m128 high = _mm256_extractf128_ps(a, 1);
@@ -324,7 +324,7 @@
     _mm_store_ss(&result, min32);
     return result;
   }
-  inline float uv_reduce_max_f32(v_f32 a)
+  static inline float uv_reduce_max_f32(v_f32 a)
   {
     __m128 low = _mm256_castps256_ps128(a);
     __m128 high = _mm256_extractf128_ps(a, 1);
@@ -353,11 +353,11 @@
   #define uv_div_f32(a, b)       _mm_div_ps(a, b)
   #define uv_max_f32(a, b)       _mm_max_ps(a, b)
   #define uv_min_f32(a, b)       _mm_min_ps(a, b)
-  inline v_f32 uv_abs_f32(v_f32 a) {
+  static inline v_f32 uv_abs_f32(v_f32 a) {
     const __m128 sign_mask = _mm_set1_ps(-0.0f);
     return _mm_andnot_ps(sign_mask, a);
   }
-  inline v_f32 uv_neg_f32(v_f32 a) {
+  static inline v_f32 uv_neg_f32(v_f32 a) {
     const __m128 mask = _mm_castsi128_ps(_mm_set1_epi32((int)0x80000000));
     return _mm_xor_ps(a, mask);
   }
@@ -378,7 +378,7 @@
   #define uv_cvt_f32_i32(v)      _mm_cvtps_epi32(v)
   #define uv_cvt_i32_f32(v)      _mm_cvtepi32_ps(v)
 
-  inline float uv_reduce_add_f32(v_f32 v)
+  static inline float uv_reduce_add_f32(v_f32 v)
   {
     __m128 shuf = _mm_shuffle_ps(v, v, _MM_SHUFFLE(2, 3, 0, 1));
     __m128 sums = _mm_add_ps(v, shuf);
@@ -386,7 +386,7 @@
     sums = _mm_add_ss(sums, shuf);
     return _mm_cvtss_f32(sums);
   }
-  inline float uv_reduce_min_f32(v_f32 a) {
+  static inline float uv_reduce_min_f32(v_f32 a) {
     __m128 shuff1 = _mm_shuffle_ps(a, a, _MM_SHUFFLE(2, 3, 0, 1));
     __m128 min64 = _mm_min_ps(a, shuff1);
     __m128 shuff2 = _mm_shuffle_ps(min64, min64, _MM_SHUFFLE(1, 0, 3, 2));
@@ -395,7 +395,7 @@
     _mm_store_ss(&result, min32);
     return result;
   }
-  inline float uv_reduce_max_f32(v_f32 a) {
+  static inline float uv_reduce_max_f32(v_f32 a) {
     __m128 shuff1 = _mm_shuffle_ps(a, a, _MM_SHUFFLE(2, 3, 0, 1));
     __m128 max64 = _mm_max_ps(a, shuff1);
     __m128 shuff2 = _mm_shuffle_ps(max64, max64, _MM_SHUFFLE(1, 0, 3, 2));
@@ -523,7 +523,7 @@
   #define uv_max_f64(a, b)       _mm512_max_pd(a, b)
   #define uv_min_f64(a, b)       _mm512_min_pd(a, b)
   #define uv_abs_f64(a, b)       _mm512_abs_pd(a, b)
-  inline v_f64 uv_neg_f64(v_f64 a) {
+  static inline v_f64 uv_neg_f64(v_f64 a) {
     __m512i mask = _mm512_set1_epi64((long long)0x8000000000000000ULL);
     return _mm512_castsi512_pd(_mm512_xor_epi64(_mm512_castpd_si512(a), mask));
   }
@@ -548,7 +548,7 @@
   #define uv_max_f64(a, b)       _mm256_max_pd(a, b)
   #define uv_min_f64(a, b)       _mm256_min_pd(a, b)
   #define uv_abs_f64(a, b)       _mm256_abs_pd(a, b)
-  inline v_f64 uv_neg_f64(v_f64 a) {
+  static inline v_f64 uv_neg_f64(v_f64 a) {
     __m256d mask = _mm256_castsi256_pd(_mm256_set1_epi64x((long long)0x8000000000000000ULL));
     return _mm256_xor_pd(a, mask);
   }
@@ -572,11 +572,11 @@
   #define uv_div_f64(a, b)       _mm_div_pd(a, b)
   #define uv_max_f64(a, b)       _mm_max_pd(a, b)
   #define uv_min_f64(a, b)       _mm_min_pd(a, b)
-  inline v_f64 uv_abs_f64(v_f64 a) {
+  static inline v_f64 uv_abs_f64(v_f64 a) {
     const __m128d sign_mask = _mm_set1_pd(-0.0f);
     return _mm_andnot_pd(sign_mask, a);
   }
-  inline v_f64 uv_neg_f64(v_f64 a) {
+  static inline v_f64 uv_neg_f64(v_f64 a) {
     __m128d mask = _mm_castsi128_pd(_mm_set1_epi64x((long long)0x8000000000000000ULL));
     return _mm_xor_pd(a, mask);
   }
@@ -647,7 +647,7 @@
   #define uv_max_i32(a, b)       _mm512_max_epi32(a, b)
   #define uv_min_i32(a, b)       _mm512_min_epi32(a, b)
   #define uv_abs_i32(v)          _mm512_abs_epi32(v)
-  inline v_i32 uv_neg_i32(v_i32 a) {
+  static inline v_i32 uv_neg_i32(v_i32 a) {
     const __m512i mask = _mm512_set1_epi32((int)0x80000000);
     return _mm512_xor_epi32(a, mask);
   }
@@ -725,7 +725,7 @@
   #define uv_max_i32(a, b)       _mm256_max_epi32(a, b)
   #define uv_min_i32(a, b)       _mm256_min_epi32(a, b)
   #define uv_abs_i32(v)          _mm256_abs_epi32(v)
-  inline v_i32 uv_neg_i32(v_i32 a) {
+  static inline v_i32 uv_neg_i32(v_i32 a) {
     const __m256i mask = _mm256_set1_epi32((int)0x80000000);
     return _mm256_xor_epi32(a, mask);
   }
@@ -769,11 +769,20 @@
 
   #define uv_add_i32(a, b)       _mm_add_epi32(a, b)
   #define uv_sub_i32(a, b)       _mm_sub_epi32(a, b)
-  #define uv_mul_i32(a, b)       _mm_mullo_epi32(a, b)
   #if defined(__SSE4_1__)
+    #define uv_mul_i32(a, b)     _mm_mullo_epi32(a, b)
     #define uv_max_i32(a, b)     _mm_max_epi32(a, b)
     #define uv_min_i32(a, b)     _mm_min_epi32(a, b)
   #else
+    static inline v_i32 uv_mul_i32(v_i32 a, v_i32 b) {
+      __m128i mul02 = _mm_mul_epu32(a, b);
+      __m128i a13   = _mm_shuffle_epi32(a, _MM_SHUFFLE(3, 3, 1, 1));
+      __m128i b13   = _mm_shuffle_epi32(b, _MM_SHUFFLE(3, 3, 1, 1));
+      __m128i mul13 = _mm_mul_epu32(a13, b13);
+      __m128i res_lo = _mm_unpacklo_epi32(mul02, mul13);
+      __m128i res_hi = _mm_unpackhi_epi32(mul02, mul13);
+      return _mm_unpacklo_epi64(res_lo, res_hi);
+    }
     static inline v_i32 uv_max_i32(v_i32 a, v_i32 b) {
       return  _mm_or_si128(_mm_and_si128(_mm_cmpgt_epi32(a, b), a),
                            _mm_andnot_si128(_mm_cmpgt_epi32(a, b), b));
@@ -791,7 +800,7 @@
       return _mm_sub_epi32(_mm_xor_si128(v, sign), sign);
     }
   #endif
-  inline v_i32 uv_neg_i32(v_i32 a) {
+  static inline v_i32 uv_neg_i32(v_i32 a) {
     const __m128i mask = _mm_set1_epi32((int)0x80000000);
     return _mm_xor_epi32(a, mask);
   }

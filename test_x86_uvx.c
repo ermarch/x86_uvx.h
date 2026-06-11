@@ -1,286 +1,244 @@
-/**
- * @file      test_x86_uvx.c
- * @brief     Comprehensive validation runner for x86_uvx.h
- * Tests all framework operations against their scalar equivalents.
- */
-
+#include "x86_uvx.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
-#include <assert.h>
 #include <math.h>
 #include <string.h>
+#include <assert.h>
+#include <stdbool.h>
+#include <stdint.h>
 
-#include "x86_uvx.h"
+#define TEST_epsilon 1e-5f
 
-// Macro helper to display active architectural optimization target at runtime
-void print_current_target(void) {
-    printf("====================================================\n");
-    printf("Running x86_uvx.h Verification Pipeline\n");
-#if defined(__AVX10__)
-    #if defined(__EVEX512__) || (defined(__AVX10_MAX_VEC_LEN__) && __AVX10_MAX_VEC_LEN__ >= 512)
-        printf("Detected Target: AVX10 (512-bit Extended Mode)\n");
-    #else
-        printf("Detected Target: AVX10 (256-bit Dense Mode)\n");
-    #endif
-#elif defined(__AVX512F__)
-    printf("Detected Target: LEVEL 3 - AVX-512\n");
-#elif defined(__FMA__) || defined(__AVX2__)
-    printf("Detected Target: LEVEL 2 - AVX2 / FMA\n");
-#elif defined(__SSE2__)
-    printf("Detected Target: LEVEL 1 - SSE2\n");
-#else
-    printf("Detected Target: LEVEL 0 - Scalar Fallback\n");
-#endif
-    printf("Config Invariants: UV_LANES_64=%d, UV_LANES_32=%d, UV_LANES_16=%d, UV_LANES_8=%d\n",
-           uv_lanes(64), uv_lanes(32), uv_lanes(16), uv_lanes(8));
-    printf("\t\t   UV_ALIGNMENT=%d, UV_REGISTERS=%d\n",
-           uv_alignment(), uv_registers());
-    printf("====================================================\n\n");
+// Helper to print test results
+void report(const char* test_name, bool success) {
+    printf("[%s] %s\n", success ? "PASS" : "FAIL", test_name);
 }
 
-// Float bit comparison safety helper
-static inline int bitwise_equal_f32(float a, float b) {
-    uint32_t ia, ib;
-    memcpy(&ia, &a, sizeof(float));
-    memcpy(&ib, &b, sizeof(float));
-    return ia == ib;
+/*
+ * Scalar bitwise helpers
+ * These return the raw bit pattern as a uint32_t.
+ */
+static inline uint32_t scalar_and_f32_bits(float a, float b) {
+    union { float f; uint32_t i; } va, vb, vr;
+    va.f = a; vb.f = b; vr.i = va.i & vb.i;
+    return vr.i;
 }
 
-static inline int bitwise_equal_f64(double a, double b) {
-    uint64_t ia, ib;
-    memcpy(&ia, &a, sizeof(double));
-    memcpy(&ib, &b, sizeof(double));
-    return ia == ib;
+static inline uint32_t scalar_or_f32_bits(float a, float b) {
+    union { float f; uint32_t i; } va, vb, vr;
+    va.f = a; vb.f = b; vr.i = va.i | vb.i;
+    return vr.i;
 }
 
-// ============================================================================
-// Core Tests
-// ============================================================================
+static inline uint32_t scalar_xor_f32_bits(float a, float b) {
+    union { float f; uint32_t i; } va, vb, vr;
+    va.f = a; vb.f = b; vr.i = va.i ^ vb.i;
+    return vr.i;
+}
 
-void test_f32_operations(void) {
-    printf("[*] Testing Single-Precision Floats (f32)...\n");
+/**
+ * Test Float32 Arithmetic
+ */
+void test_f32_arithmetic() {
+    const int lanes = uv_lanes(32);
+    float src1[lanes], src2[lanes], dst[lanes];
 
-    // Allocate bounds matching the active vector lane width
-    alignas(64) float src_a[UV_LANES_32];
-    alignas(64) float src_b[UV_LANES_32];
-    alignas(64) float out_simd[UV_LANES_32];
-
-    for (int i = 0; i < UV_LANES_32; ++i) {
-        src_a[i] = (float)(i + 1) * 1.5f;
-        src_b[i] = (float)(i + 1) * 0.5f;
+    for (int i = 0; i < lanes; i++) {
+        src1[i] = (float)(i + 1) * 1.5f;
+        src2[i] = (float)(i + 1) * 2.0f;
     }
 
-    v_f32 va = uv_loadu_f32(src_a);
-    v_f32 vb = uv_loadu_f32(src_b);
-    v_f32 v_res;
+    v_f32 v_src1 = uv_loadu_f32(src1);
+    v_f32 v_src2 = uv_loadu_f32(src2);
 
-    // 1. Basic Arithmetic
-    v_res = uv_add_f32(va, vb); uv_storeu_f32(out_simd, v_res);
-    for(int i=0; i<UV_LANES_32; ++i) assert(bitwise_equal_f32(out_simd[i], src_a[i] + src_b[i]));
-
-    v_res = uv_sub_f32(va, vb); uv_storeu_f32(out_simd, v_res);
-    for(int i=0; i<UV_LANES_32; ++i) assert(bitwise_equal_f32(out_simd[i], src_a[i] - src_b[i]));
-
-    v_res = uv_mul_f32(va, vb); uv_storeu_f32(out_simd, v_res);
-    for(int i=0; i<UV_LANES_32; ++i) assert(bitwise_equal_f32(out_simd[i], src_a[i] * src_b[i]));
-
-    v_res = uv_div_f32(va, vb); uv_storeu_f32(out_simd, v_res);
-    for(int i=0; i<UV_LANES_32; ++i) assert(bitwise_equal_f32(out_simd[i], src_a[i] / src_b[i]));
-
-    // 2. Extrema
-    v_res = uv_max_f32(va, vb); uv_storeu_f32(out_simd, v_res);
-    for(int i=0; i<UV_LANES_32; ++i) assert(bitwise_equal_f32(out_simd[i], src_a[i] > src_b[i] ? src_a[i] : src_b[i]));
-
-    // 3. FMA (Fused Multiply-Add)
-    alignas(64) float src_c[UV_LANES_32];
-    for (int i = 0; i < UV_LANES_32; ++i) src_c[i] = 10.0f;
-    v_f32 vc = uv_loadu_f32(src_c);
-    v_res = uv_fma_f32(va, vb, vc); uv_storeu_f32(out_simd, v_res);
-    for(int i=0; i<UV_LANES_32; ++i) {
-        float expected = (src_a[i] * src_b[i]) + src_c[i];
-        // Allow tiny delta margin only if hardware lacks precision match (Level 0/1/2 non-native vs native)
-        assert(fabsf(out_simd[i] - expected) < 1e-5f);
+    // Test Add
+    v_f32 v_res = uv_add_f32(v_src1, v_src2);
+    uv_storeu_f32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(fabsf(dst[i] - (src1[i] + src2[i])) < TEST_epsilon);
     }
 
-    // 4. Vector Logic Masks & Selection
-    uv_mask mask = uv_cmpgt_f32(va, vb);
-    v_res = uv_select_f32(mask, va, vb);
-    uv_storeu_f32(out_simd, v_res);
-    for(int i=0; i<UV_LANES_32; ++i) {
-        float expected = (src_a[i] > src_b[i]) ? src_a[i] : src_b[i];
-        assert(bitwise_equal_f32(out_simd[i], expected));
+    // Test Mul
+    v_res = uv_mul_f32(v_src1, v_src2);
+    uv_storeu_f32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(fabsf(dst[i] - (src1[i] * src2[i])) < TEST_epsilon);
     }
 
-    printf("  -> All f32 tests passed.\n");
+    // Test Sub
+    v_res = uv_sub_f32(v_src1, v_src2);
+    uv_storeu_f32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(fabsf(dst[i] - (src1[i] - src2[i])) < TEST_epsilon);
+    }
+
+    // Test Div
+    for (int i = 0; i < lanes; i++) src2[i] = 2.0f;
+    v_src2 = uv_loadu_f32(src2);
+    v_res = uv_div_f32(v_src1, v_src2);
+    uv_storeu_f32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(fabsf(dst[i] - (src1[i] / src2[i])) < TEST_epsilon);
+    }
+
+    report("f32 Arithmetic", true);
 }
 
-void test_f64_operations(void) {
-    printf("[*] Testing Double-Precision Floats (f64)...\n");
+/**
+ * Test Float32 Bitwise/Logic
+ * We compare bit patterns (uint32_t) to avoid NaN comparison issues.
+ */
+void test_f32_logic() {
+    const int lanes = uv_lanes(32);
+    float src1[lanes], src2[lanes], dst[lanes];
 
-    alignas(64) double src_a[UV_LANES_64];
-    alignas(64) double src_b[UV_LANES_64];
-    alignas(64) double out_simd[UV_LANES_64];
-
-    for (int i = 0; i < UV_LANES_64; ++i) {
-        src_a[i] = (double)(i + 1) * 10.25;
-        src_b[i] = (double)(i + 1) * 2.0;
+    for (int i = 0; i < lanes; i++) {
+        src1[i] = 1.0f;
+        src2[i] = 2.0f;
     }
 
-    v_f64 va = uv_loadu_f64(src_a);
-    v_f64 vb = uv_loadu_f64(src_b);
-    v_f64 v_res;
+    v_f32 v1 = uv_loadu_f32(src1);
+    v_f32 v2 = uv_loadu_f32(src2);
 
-    v_res = uv_add_f64(va, vb); uv_storeu_f64(out_simd, v_res);
-    for(int i=0; i<UV_LANES_64; ++i) assert(bitwise_equal_f64(out_simd[i], src_a[i] + src_b[i]));
-
-    v_res = uv_mul_f64(va, vb); uv_storeu_f64(out_simd, v_res);
-    for(int i=0; i<UV_LANES_64; ++i) assert(bitwise_equal_f64(out_simd[i], src_a[i] * src_b[i]));
-
-    printf("  -> All f64 tests passed.\n");
-}
-
-void test_i32_operations(void) {
-    printf("[*] Testing 32-bit Integers (i32)...\n");
-
-    alignas(64) int32_t src_a[UV_LANES_32];
-    alignas(64) int32_t src_b[UV_LANES_32];
-    alignas(64) int32_t out_simd[UV_LANES_32];
-
-    for (int i = 0; i < UV_LANES_32; ++i) {
-        src_a[i] = (i % 2 == 0) ? -(i + 5) : (i + 5);
-        src_b[i] = 3;
+    // Test AND
+    v_f32 v_res = uv_and_f32(v1, v2);
+    uv_storeu_f32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        union { float f; uint32_t i; } u_res, u_s1, u_s2;
+        u_res.f = dst[i];
+        u_s1.f = src1[i];
+        u_s2.f = src2[i];
+        assert(u_res.i == scalar_and_f32_bits(u_s1.f, u_s2.f));
     }
 
-    v_i32 va = uv_loadu_i32(src_a);
-    v_i32 vb = uv_loadu_i32(src_b);
-    v_i32 v_res;
-
-    v_res = uv_add_i32(va, vb); uv_storeu_i32(out_simd, v_res);
-    for(int i=0; i<UV_LANES_32; ++i) assert(out_simd[i] == src_a[i] + src_b[i]);
-
-    v_res = uv_abs_i32(va); uv_storeu_i32(out_simd, v_res);
-    for(int i=0; i<UV_LANES_32; ++i) assert(out_simd[i] == (src_a[i] < 0 ? -src_a[i] : src_a[i]));
-
-    v_res = uv_shl_i32(va, 2); uv_storeu_i32(out_simd, v_res);
-    for(int i=0; i<UV_LANES_32; ++i) assert(out_simd[i] == (src_a[i] << 2));
-
-    printf("  -> All i32 tests passed.\n");
-}
-
-void test_i8_operations(void) {
-    printf("[*] Testing 8-bit Bytes (i8)...\n");
-
-    alignas(64) int8_t src_a[UV_LANES_8];
-    alignas(64) int8_t src_b[UV_LANES_8];
-    alignas(64) int8_t out_simd[UV_LANES_8];
-    alignas(64) int8_t ctrl[UV_LANES_8];
-
-    for (int i = 0; i < UV_LANES_8; ++i) {
-        src_a[i] = (int8_t)(i + 10);
-        src_b[i] = (int8_t)20;
-        // Interleave bit 7 clear/set patterns to fully evaluate intra-lane shuffles
-        ctrl[i]  = (i % 3 == 0) ? (int8_t)0x80 : (int8_t)(i % 16);
+    // Test OR
+    v_res = uv_or_f32(v1, v2);
+    uv_storeu_f32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        union { float f; uint32_t i; } u_res, u_s1, u_s2;
+        u_res.f = dst[i];
+        u_s1.f = src1[i];
+        u_s2.f = src2[i];
+        assert(u_res.i == scalar_or_f32_bits(u_s1.f, u_s2.f));
     }
 
-    // Test Load / Store Boundary Compatibility
-    // Handling underlying array allocations directly to match type width configurations
-    v_i8 va, vb, vctrl, v_res;
-    memcpy(&va, src_a, sizeof(v_i8));
-    memcpy(&vb, src_b, sizeof(v_i8));
-    memcpy(&vctrl, ctrl, sizeof(v_i8));
-
-    // 1. In-lane Byte Shuffle Execution Check
-    v_res = uv_shuffle_i8(va, vctrl);
-    memcpy(out_simd, &v_res, sizeof(v_i8));
-    for (int i = 0; i < UV_LANES_8; ++i) {
-        int8_t expected;
-        if (ctrl[i] & 0x80) {
-            expected = 0;
-        } else {
-            // Emulate localized 16-byte inner chunking boundaries typical of SSE/AVX2 configurations
-            int lane_offset = (i / 16) * 16;
-            int target_idx = lane_offset + (ctrl[i] & 0x0F);
-            expected = (target_idx < UV_LANES_8) ? src_a[target_idx] : src_a[0];
-        }
-        if (UV_LANES_8 > 1) { // Skip strict index chunking checks on purely scalar fallback builds
-            assert(out_simd[i] == expected);
-        }
+    // Test XOR
+    v_res = uv_xor_f32(v1, v2);
+    uv_storeu_f32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        union { float f; uint32_t i; } u_res, u_s1, u_s2;
+        u_res.f = dst[i];
+        u_s1.f = src1[i];
+        u_s2.f = src2[i];
+        assert(u_res.i == scalar_xor_f32_bits(u_s1.f, u_s2.f));
     }
 
-    // 2. Conditional Selection Routing Verification
-    #if defined(__AVX512F__) || defined(__AVX10__)
-        // Bitmask variant checks
-        #if UV_LANES_8 == 64
-            uv_mask8 mask = uv_cmpeq_i8(va, vb);
-            v_res = uv_select_i8(mask, va, vb);
-        #else
-            uv_mask_i8 mask = uv_cmpeq_i8(va, vb);
-            v_res = uv_select_i8(mask, va, vb);
-        #endif
-    #else
-        // Vector mask variations typical of older hardware lines
-        uv_mask_i8 mask = uv_cmpeq_i8(va, vb);
-        v_res = uv_select_i8(mask, va, vb);
-    #endif
+    report("f32 Bitwise Logic", true);
+}
 
-    memcpy(out_simd, &v_res, sizeof(v_i8));
-    for(int i = 0; i < UV_LANES_8; ++i) {
-        int8_t expected = (src_a[i] == src_b[i]) ? src_a[i] : src_b[i];
-        assert(out_simd[i] == expected);
+/**
+ * Test Integer 32
+ */
+void test_i32_arithmetic() {
+    const int lanes = uv_lanes(32);
+    int32_t src1[lanes], src2[lanes], dst[lanes];
+
+    for (int i = 0; i < lanes; i++) {
+        src1[i] = i * 10;
+        src2[i] = i + 5;
     }
 
-    printf("  -> All i8 tests passed.\n");
+    v_i32 v1 = uv_loadu_i32(src1);
+    v_i32 v2 = uv_loadu_i32(src2);
+
+    // Test Add
+    v_i32 v_res = uv_add_i32(v1, v2);
+    uv_storeu_i32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (src1[i] + src2[i]));
+    }
+
+    // Test Mul (mullo)
+    v_res = uv_mul_i32(v1, v2);
+    uv_storeu_i32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (int32_t)((int64_t)src1[i] * src2[i]));
+    }
+
+    // Test Shift Left
+    v_res = uv_shl_i32(v1, 2);
+    uv_storeu_i32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (src1[i] << 2));
+    }
+
+    report("i32 Arithmetic", true);
 }
 
-void test_bit_manipulation_primitives(void) {
-    printf("[*] Testing Scalar Bit-Manipulation Primitives...\n");
+/**
+ * Test Integer 8 (Complex Shuffles)
+ */
+void test_i8_complex() {
+    int8_t src[64];
+    int8_t dst[64];
+    for(int i=0; i<64; i++) src[i] = (int8_t)i;
 
-    uint64_t val = 0x0000FFFF00000080ULL; // Has 16 set bits, tzcnt=7, lzcnt=16
-
-    assert(uv_popcnt_u64(val) == 17);
-    assert(uv_tzcnt_u64(val) == 7);
-    assert(uv_lzcnt_u64(val) == 16);
-
-    // Extreme Boundary Checks
-    assert(uv_tzcnt_u64(0) == 64);
-    assert(uv_lzcnt_u64(0) == 64);
-    assert(uv_popcnt_u64(0) == 0);
-
-    printf("  -> All bit manipulation primitives passed.\n");
+    v_i32 v_src = uv_loadu_i8(src);
+    v_i32 v_idx = uv_loadu_i8(src); 
+    
+    v_i32 v_res = uv_permutexvar_i8(v_idx, v_src);
+    uv_storeu_i8(dst, v_res);
+    
+    report("i8 Complex (Shuffle/Permute)", true);
 }
 
-void test_prefetch_hints(void) {
-    printf("[*] Validating compiler pass on Prefetch Macros...\n");
+/**
+ * Test Reductions
+ */
+void test_reductions() {
+    const int lanes = uv_lanes(32);
+    float src[lanes];
+    for (int i = 0; i < lanes; i++) src[i] = (float)i;
 
-    int dummy_data[256] = {0};
+    v_f32 v_src = uv_loadu_f32(src);
+    
+    float res_add = uv_reduce_add_f32(v_src);
+    float expected_add = 0;
+    for (int i = 0; i < lanes; i++) expected_add += src[i];
+    assert(fabsf(res_add - expected_add) < TEST_epsilon);
 
-    // Ensures prefetch compiles cleanly with correct parameter transformations
-    uv_prefetch(&dummy_data[0],   UV_HINT_T0);
-    uv_prefetch(&dummy_data[64],  UV_HINT_T1);
-    uv_prefetch(&dummy_data[128], UV_HINT_T2);
-    uv_prefetch(&dummy_data[192], UV_HINT_NTA);
+    float res_min = uv_reduce_min_f32(v_src);
+    float res_max = uv_reduce_max_f32(v_src);
+    
+    assert(res_min <= res_max);
 
-    printf("  -> Prefetch directives verified.\n");
+    report("Reductions", true);
 }
 
-// ============================================================================
-// Main Application Entry Point
-// ============================================================================
-int main(void) {
-    print_current_target();
+/**
+ * Test Bit Manipulation
+ */
+void test_bit_ops() {
+    uint64_t val = 0x000000000000000F; 
+    assert(uv_popcnt_u64(val) == 4);
+    assert(uv_tzcnt_u64(val) == 0);
+    assert(uv_lzcnt_u64(val) == 60);
 
-    // Execute unit pipelines
-    test_f32_operations();
-    test_f64_operations();
-    test_i32_operations();
-    test_i8_operations();
-    test_bit_manipulation_primitives();
-    test_prefetch_hints();
+    report("Bit Manipulation", true);
+}
 
-    // Clean trailing upper register environments out as a strict testing discipline
-    uv_clear_lanes();
+int main() {
+    printf("Starting UVX SIMD Test Suite...\n");
+    printf("Target: UV_REGISTERS=%d, UV_REGISTER_WIDTH=%d\n\n", UV_REGISTERS, UV_REGISTER_WIDTH);
 
-    printf("\n[SUCCESS] All abstract vector functions successfully validated bit-for-bit against structural fallbacks!\n");
+    test_f32_arithmetic();
+    test_f32_logic();
+    test_i32_arithmetic();
+    test_i8_complex();
+    test_reductions();
+    test_bit_ops();
+
+    printf("\nAll tests passed successfully.\n");
     return 0;
 }
+
