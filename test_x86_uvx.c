@@ -75,6 +75,29 @@ static inline float scalar_rint_f32(float x) {
     return (x + magic) - magic;
 }
 
+// I32
+static inline v_i32 scalar_cmpgt_i32(int32_t *a, int32_t *b) {
+   const v_i32 v_val_true = uv_dup_i32(1);
+   const v_i32 v_val_false = uv_dup_i32(0);
+
+   v_i32 v_a = uv_loadu_i32(a);
+   v_i32 v_b = uv_loadu_i32(b);
+
+   v_mask_i8 v_mask = uv_cmpgt_i32(v_a, v_b);
+   return uv_select_i32(v_mask, v_val_true, v_val_false);
+}
+
+static inline v_i32 scalar_cmplt_i32(int32_t *a, int32_t *b) {
+   const v_i32 v_val_true = uv_dup_i32(1);
+   const v_i32 v_val_false = uv_dup_i32(0);
+
+   v_i32 v_a = uv_loadu_i32(a);
+   v_i32 v_b = uv_loadu_i32(b);
+
+   v_mask_i8 v_mask = uv_cmplt_i32(v_a, v_b);
+   return uv_select_i32(v_mask, v_val_true, v_val_false);
+}
+
 // F64
 static inline uint64_t scalar_and_f64_bits(double a, double b) {
     union { double f; uint64_t i; } va, vb, vr;
@@ -124,7 +147,7 @@ static inline v_f64 scalar_cmplt_f64(double *a, double *b) {
 
 
 /**
- * Test Float32 Arithmetic
+ * Test Arithmetic
  */
 void test_f32_arithmetic() {
     const int lanes = uv_lanes(32);
@@ -244,8 +267,72 @@ void test_f64_arithmetic() {
     report("f64 Arithmetic", true);
 }
 
+void test_i32_arithmetic() {
+    const int lanes = uv_lanes(32);
+    int32_t src1[lanes], src2[lanes], dst[lanes];
+
+    for (int i = 0; i < lanes; i++) {
+        src1[i] = i * 10;
+        src2[i] = i + 5;
+    }
+
+    v_i32 v_src1 = uv_loadu_i32(src1);
+    v_i32 v_src2 = uv_loadu_i32(src2);
+
+    // Test Add
+    v_i32 v_res = uv_add_i32(v_src1, v_src2);
+    uv_storeu_i32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (src1[i] + src2[i]));
+    }
+
+    // Test Sub
+    v_res = uv_sub_i32(v_src1, v_src2);
+    uv_storeu_i32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(fabsf(dst[i] - (src1[i] - src2[i])) < TEST_epsilon);
+    }
+
+    // Test Mul (mullo)
+    v_res = uv_mul_i32(v_src1, v_src2);
+    uv_storeu_i32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (int32_t)((int64_t)src1[i] * src2[i]));
+    }
+
+    // Test Abs
+    v_res = uv_abs_i32(v_src1);
+    uv_storeu_i32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == fabsf(src1[i]));
+    }
+
+    // Test Neg
+    v_res = uv_neg_i32(v_src1);
+    uv_storeu_i32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == -src1[i]);
+    }
+
+    // Test Shift Left 
+    v_res = uv_shl_i32(v_src1, 2); 
+    uv_storeu_i32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (src1[i] << 2));
+    }
+
+    // Test Shift Right
+    v_res = uv_shr_i32(v_src1, 2);
+    uv_storeu_i32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (src1[i] >> 2));
+    }
+
+    report("i32 Arithmetic", true);
+}
+
 /**
- * Test Float32 Multiply-Add (FMA)
+ * Test Multiply-Add (FMA)
  * Tests: (a * b) + c
  */
 void test_f32_fmadd() {
@@ -353,7 +440,7 @@ void test_f64_fmadd() {
 }
 
 /**
- * Test Float32 Comparison
+ * Test Comparison
  */
 void test_f32_comparison() {
     const int lanes = uv_lanes(32);
@@ -473,8 +560,67 @@ void test_f64_comparison() {
     report("f64 Comparison", true);
 }
 
+void test_i32_comparison() {
+    const int lanes = uv_lanes(32);
+    int32_t src1[lanes], src2[lanes], dst[lanes];
+
+    for (int i = 0; i < lanes; i++) {
+        src1[i] = (int32_t)(i + 1) * 1.5f;
+        src2[i] = (int32_t)(i + 1) * 2.0f;
+    }
+
+    v_i32 v_src1 = uv_loadu_i32(src1);
+    v_i32 v_src2 = uv_loadu_i32(src2);
+
+    // Test Min
+    v_i32 v_res = uv_min_i32(v_src1, v_src2);
+    uv_storeu_i32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == _MIN(src1[i], src2[i]));
+    }
+
+    // Test Max
+    v_res = uv_max_i32(v_src1, v_src2);
+    uv_storeu_i32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == _MAX(src1[i], src2[i]));
+    }
+
+    // Test Greater-than and Select
+    int32_t a_src[UV_MAX_LANES] = {
+               1,         -1,         0,         5,
+               1, -INT32_MAX, INT32_MAX,         1,
+       INT32_MIN,  INT32_MIN,     1e30f,         0,
+       INT32_MIN,  INT32_MIN,     1e30f,         0
+    };
+    int32_t b_src[UV_MAX_LANES] = {
+            0.5f,         -2,         1,         5,
+       INT32_MAX,          0, INT32_MAX, INT32_MIN,
+               1,  INT32_MIN,     1e30f,         0,
+               1,  INT32_MIN,     1e30f,         0
+    };
+    for (int i = 0; i < UV_MAX_LANES; i += lanes) {
+        union { v_i32 epi32; int32_t i[UV_MAX_LANES]; } res;
+        res.epi32 = scalar_cmpgt_i32(a_src + i, b_src + i);
+        for (int r = 0; r < lanes; r++) {
+            assert((a_src[i + r] > b_src[i + r]) == res.i[r]);
+        }
+    }
+
+    // Test Less-than
+    for (int i = 0; i < UV_MAX_LANES; i += lanes) {
+        union { v_i32 epi32; int32_t i[UV_MAX_LANES]; } res;
+        res.epi32 = scalar_cmplt_i32(a_src + i, b_src + i);
+        for (int r = 0; r < lanes; r++) {
+            assert((a_src[i + r] < b_src[i + r]) == res.i[r]);
+        }
+    }
+
+    report("i32 Comparison", true);
+}
+
 /**
- * Test Float32 Bitwise/Logic
+ * Test Bitwise/Logic
  * We compare bit patterns (uint32_t) to avoid NaN comparison issues.
  */
 void test_f32_logic() {
@@ -595,6 +741,49 @@ void test_f64_logic() {
     report("f64 Bitwise Logic", true);
 }
 
+void test_i32_logic() {
+    const int lanes = uv_lanes(32);
+    int32_t src1[lanes], src2[lanes], dst[lanes];
+
+    for (int i = 0; i < lanes; i++) {
+        src1[i] = 1;
+        src2[i] = 2;
+    }
+    
+    v_i32 v1 = uv_loadu_i32(src1);
+    v_i32 v2 = uv_loadu_i32(src2);
+    
+    // Test AND
+    v_i32 v_res = uv_and_i32(v1, v2);
+    uv_storeu_i32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (src1[i] & src2[i]));
+    }
+    
+    // Test ANDNOT
+    v_res = uv_andnot_i32(v1, v2);
+    uv_storeu_i32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (~src1[i] & src2[i]));
+    }
+
+    // Test OR
+    v_res = uv_or_i32(v1, v2);
+    uv_storeu_i32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (src1[i] | src2[i]));
+    }
+
+    // Test XOR
+    v_res = uv_xor_i32(v1, v2);
+    uv_storeu_i32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (src1[i] ^ src2[i]));
+    }
+
+    report("i32 Bitwise Logic", true);
+}
+
 void test_f32_convert() {
     const int lanes = uv_lanes(32);
     int32_t i_src[lanes], i_dst[lanes];
@@ -620,45 +809,6 @@ void test_f32_convert() {
     }
 
     report("f32 Convert", true);
-}
-
-/**
- * Test Integer 32
- */
-void test_i32_arithmetic() {
-    const int lanes = uv_lanes(32);
-    int32_t src1[lanes], src2[lanes], dst[lanes];
-
-    for (int i = 0; i < lanes; i++) {
-        src1[i] = i * 10;
-        src2[i] = i + 5;
-    }
-
-    v_i32 v1 = uv_loadu_i32(src1);
-    v_i32 v2 = uv_loadu_i32(src2);
-
-    // Test Add
-    v_i32 v_res = uv_add_i32(v1, v2);
-    uv_storeu_i32(dst, v_res);
-    for (int i = 0; i < lanes; i++) {
-        assert(dst[i] == (src1[i] + src2[i]));
-    }
-
-    // Test Mul (mullo)
-    v_res = uv_mul_i32(v1, v2);
-    uv_storeu_i32(dst, v_res);
-    for (int i = 0; i < lanes; i++) {
-        assert(dst[i] == (int32_t)((int64_t)src1[i] * src2[i]));
-    }
-
-    // Test Shift Left
-    v_res = uv_shl_i32(v1, 2);
-    uv_storeu_i32(dst, v_res);
-    for (int i = 0; i < lanes; i++) {
-        assert(dst[i] == (src1[i] << 2));
-    }
-
-    report("i32 Arithmetic", true);
 }
 
 /**
@@ -729,6 +879,9 @@ int main() {
     test_f32_convert();
 
     test_i32_arithmetic();
+    test_i32_comparison();
+    test_i32_logic();
+
     test_i8_complex();
     test_reductions();
     test_bit_ops();
