@@ -31,8 +31,9 @@ The library defines unified vector types that scale with the target level:
 
 | Type       | Description                    |
 |:-----------|:-------------------------------|
-| `v_f32`    | Single-precision floating point |
 | `v_f64`    | Double-precision floating point |
+| `v_f32`    | Single-precision floating point |
+| `i_f64`    | Signed 64-bit integers         |
 | `v_i32`    | Signed 32-bit integers         |
 | `v_i16`    | Signed 16-bit integers         |
 | `v_i8`     | Signed 8-bit integers          |
@@ -46,7 +47,7 @@ All functions are overloaded per data type and automatically scale to the availa
 ### Memory Operations
 - `uv_load_f32(ptr)`, `uv_loadu_f32(ptr)`
 - `uv_store_f32(ptr, v)`, `uv_storeu_f32(ptr, v)`
-- Similar operations for `f64`, `i32`, `i16`, `i8`
+- Similar operations for `f64`, `i64`, `i32`, `i16`, `i8`
 - `uv_setzero_*()`, `uv_dup_*()`
 
 ### Arithmetic

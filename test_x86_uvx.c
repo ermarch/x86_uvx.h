@@ -69,10 +69,8 @@ static inline v_f32 scalar_cmplt_f32(float *a, float *b) {
 }
 
 static inline float scalar_rint_f32(float x) {
-    float magic = 8388608.0f;
-    if (x < 0.0f) magic = -magic;
-    if (x >= 8388608.0f || x <= -8388608.0f) return x;
-    return (x + magic) - magic;
+    float magic = copysign(8388608.0f, x);
+    return (int32_t)((x + magic) - magic);
 }
 
 // I32
@@ -314,8 +312,8 @@ void test_i32_arithmetic() {
         assert(dst[i] == -src1[i]);
     }
 
-    // Test Shift Left 
-    v_res = uv_shl_i32(v_src1, 2); 
+    // Test Shift Left
+    v_res = uv_shl_i32(v_src1, 2);
     uv_storeu_i32(dst, v_res);
     for (int i = 0; i < lanes; i++) {
         assert(dst[i] == (src1[i] << 2));
@@ -749,17 +747,17 @@ void test_i32_logic() {
         src1[i] = 1;
         src2[i] = 2;
     }
-    
+
     v_i32 v1 = uv_loadu_i32(src1);
     v_i32 v2 = uv_loadu_i32(src2);
-    
+
     // Test AND
     v_i32 v_res = uv_and_i32(v1, v2);
     uv_storeu_i32(dst, v_res);
     for (int i = 0; i < lanes; i++) {
         assert(dst[i] == (src1[i] & src2[i]));
     }
-    
+
     // Test ANDNOT
     v_res = uv_andnot_i32(v1, v2);
     uv_storeu_i32(dst, v_res);
@@ -809,6 +807,33 @@ void test_f32_convert() {
     }
 
     report("f32 Convert", true);
+}
+
+void test_f64_convert() {
+    const int lanes = uv_lanes(64);
+    double f_src[lanes], f_dst[lanes];
+    int64_t i_src[lanes], i_dst[lanes];
+
+    for (int i = 0; i < lanes; i++) {
+        f_src[i] = (double)(i + 1) * ((i % 2) ? 1.5f : -1.5f);
+        i_src[i] = ((i % 2) ? -1 : 1)<<(64-i*lanes);
+    }
+
+    v_i64 i_v = uv_loadu_i64(i_src);
+    v_f64 v_f_res = uv_cvt_i64_f64(i_v);
+    uv_storeu_f64(f_dst, v_f_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(f_dst[i] == (double)i_src[i]);
+    }
+
+    v_f64 f_v = uv_loadu_f64(f_src);
+    v_i64 v_i_res = uv_cvt_f64_i64(f_v);
+    uv_storeu_i64(i_dst, v_i_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(i_dst[i] == (int64_t)f_src[i]);
+    }
+
+    report("f64 Convert", true);
 }
 
 /**
@@ -871,6 +896,7 @@ int main() {
     test_f64_fmadd();
     test_f64_comparison();
     test_f64_logic();
+    test_f64_convert();
 
     test_f32_arithmetic();
     test_f32_fmadd();

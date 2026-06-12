@@ -83,8 +83,10 @@
 #define UV_ALIGNMENT             64
 #define UV_ALIGNMENT_MASK        (UV_ALIGNMENT-1)
 
-#define UV_MAX_LANES             16
 #define UV_MAX_REGISTERS         32
+
+#define UV_MAX_LANES             16
+#define UV_MAX_LANES_64          (UV_MAX_LANES/2)
 #define UV_LANES_8               ((UV_REGISTERS > 1) ? (UV_REGISTER_WIDTH/8) : 1)
 #define UV_LANES_16              ((UV_REGISTERS > 1) ? (UV_REGISTER_WIDTH/16) : 1)
 #define UV_LANES_32              ((UV_REGISTERS > 1) ? (UV_REGISTER_WIDTH/32) : 1)
@@ -116,6 +118,7 @@
     typedef __m512d v_f64;
     typedef __m512  v_f32;
 
+    typedef __m512i v_i64;
     typedef __m512i v_i32;
     typedef __m512i v_i16;
     typedef __m512i v_i8;
@@ -132,6 +135,7 @@
     typedef __m256d v_f64;
     typedef __m256  v_f32;
 
+    typedef __m256i v_i64;
     typedef __m256i v_i32;
     typedef __m256i v_i16;
     typedef __m256i v_i8;
@@ -150,6 +154,7 @@
   typedef __m512d v_f64;
   typedef __m512  v_f32;
 
+  typedef __m512i v_i64;
   typedef __m512i v_i32;
   typedef __m512i v_i16;
   typedef __m512i v_i8;
@@ -167,6 +172,7 @@
   typedef __m256d v_f64;
   typedef __m256  v_f32;
 
+  typedef __m256i v_i64;
   typedef __m256i v_i32;
   typedef __m256i v_i16;
   typedef __m256i v_i8;
@@ -188,6 +194,7 @@
   typedef __m128d v_f64;
   typedef __m128  v_f32;
 
+  typedef __m128i v_i64;
   typedef __m128i v_i32;
   typedef __m128i v_i16;
   typedef __m128i v_i8;
@@ -205,6 +212,7 @@
   typedef double  v_f64;
   typedef float   v_f32;
 
+  typedef int32_t v_i64;
   typedef int32_t v_i32;
   typedef int16_t v_i16;
   typedef int8_t  v_i8;
@@ -454,14 +462,14 @@
     return vr.f;
   }
 
-  static inline float uv_cvt_f32_i32(float v) {
-    float magic = 8388608.0f;
-    if (v < 0.0f) magic = -magic;
-    if (v >= 8388608.0f || v <= -8388608.0f) return v;
-    return (v + magic) - magic;
-}
-
-  #define uv_cvt_i32_f32(v)      ((float)(v))
+  static inline int32_t uv_cvt_f32_i32(float v) {
+    v = v + 12582912.0f;
+    return *(int32_t*)&v - 0x4B400000;
+  }
+  static inline float uv_cvt_i32_f32(int32_t v) {
+    v = v + 0x4B400000;
+    return *(float*)&v - 12582912.0f;
+  }
 
   #define uv_reduce_add_f32(a)   (a)
   #define uv_reduce_min_f32(a)   (a)
@@ -678,6 +686,96 @@
     va.f = a; vb.f = b; vr.i = va.i ^ vb.i;
     return vr.f;
   }
+#endif
+
+#include <stdio.h>
+/*
+ * 64-bit Integer support
+ */
+#if defined(__AVX512F__)
+  #define uv_load_i64(ptr)       _mm512_loadu_si512((__m512i const*)(ptr))
+  #define uv_loadu_i64(ptr)      _mm512_loadu_si512((__m512i const*)(ptr))
+  #define uv_store_i64(ptr, v)   _mm512_storeu_si512((__m512i*)(ptr), (v))
+  #define uv_storeu_i64(ptr, v)  _mm512_storeu_si512((__m512i*)(ptr), (v))
+
+  static inline v_i64 uv_cvt_f64_i64(v_f64 v) {
+    #if defined(__AVX512DQ__) || defined(_MSC_VER)
+      return _mm512_cvttpd_epi64(v);
+    #else
+      __m256i v32 = _mm512_cvttpd_epi32(v);
+      return _mm512_cvtepi32_epi64(v32);
+    #endif
+  }
+  static inline v_f64 uv_cvt_i64_f64(v_i64 v){
+    #if defined(__AVX512DQ__) || defined(_MSC_VER)
+      return _mm512_cvtepi64_pd(v);
+    #else
+    __m512i low_mask = _mm512_set1_epi64(0x00000000FFFFFFFF);
+    __m512i v_low = _mm512_and_si512(v, low_mask);
+    __m512i v_high = _mm512_srli_epi64(v, 32);
+    __m256i v32_low = _mm512_cvtepi64_epi32(v_low);
+    __m256i v32_high = _mm512_cvtepi64_epi32(v_high);
+    __m512d d_low = _mm512_cvtepu32_pd(v32_low);
+    __m512d d_high = _mm512_cvtepu32_pd(v32_high);
+    __m512d scale = _mm512_set1_pd(4294967296.0);
+    return _mm512_fmadd_pd(d_high, scale, d_low);
+    #endif
+  }
+
+
+#elif defined(__FMA__) || defined(__AVX2__)
+  #define uv_load_i64(ptr)       _mm256_load_si256((__m256i const*)(ptr))
+  #define uv_loadu_i64(ptr)      _mm256_loadu_si256((__m256i const*)(ptr))
+  #define uv_store_i64(ptr, v)   _mm256_store_si256((__m256i*)(ptr), (v))
+  #define uv_storeu_i64(ptr, v)  _mm256_storeu_si256((__m256i*)(ptr), (v))
+
+  static inline v_i64 uv_cvt_f64_i64(v_f64 v) {
+    __m128i v32 = _mm256_cvttpd_epi32(v);
+    __m256i v64_low = _mm256_cvtepi32_epi64(v32);
+    __m128i v32_high = _mm_srli_si128(v32, 8);
+    __m256i v64_high = _mm256_cvtepi32_epi64(v32_high);
+    return _mm256_permute2f128_si256(v64_low, v64_high, 0x20);
+  }
+  static inline v_f64 uv_cvt_i64_f64(v_i64 v){
+    __m256i magic_i_lo = _mm256_set1_epi64x(0x4330000000000000);
+    __m256i magic_i_hi32 = _mm256_set1_epi64x(0x4530000080000000);
+    __m256i magic_i_all = _mm256_set1_epi64x(0x4530000080100000);
+    __m256d magic_d_all = _mm256_castsi256_pd(magic_i_all);
+    __m256i v_lo = _mm256_blend_epi32(magic_i_lo, v, 0b01010101);
+    __m256i v_hi = _mm256_srli_epi64(v, 32);
+            v_hi = _mm256_xor_si256(v_hi, magic_i_hi32);
+    __m256d v_hi_dbl = _mm256_sub_pd(_mm256_castsi256_pd(v_hi), magic_d_all);
+    return  _mm256_add_pd(v_hi_dbl, _mm256_castsi256_pd(v_lo));
+  }
+
+
+#elif defined(__SSE2__)
+  #define uv_load_i64(ptr)       _mm_load_si128((__m128i const*)(ptr))
+  #define uv_loadu_i64(ptr)      _mm_loadu_si128((__m128i const*)(ptr))
+  #define uv_store_i64(ptr, v)   _mm_store_si128((__m128i*)(ptr), (v))
+  #define uv_storeu_i64(ptr, v)  _mm_storeu_si128((__m128i*)(ptr), (v))
+
+  static inline v_i64 uv_cvt_f64_i64(v_f64 v) {
+    double d0 = _mm_cvtsd_f64(v);
+    double d1 = _mm_cvtsd_f64(_mm_unpackhi_pd(v, v));
+    const int64_t i[2] = { (int64_t)d0, (int64_t)d1 };
+    return _mm_load_si128((__m128i const*)i);
+  }
+  static inline v_f64 uv_cvt_i64_f64(v_i64 v) {
+    int64_t i0 = _mm_extract_epi64(v, 0);
+    int64_t i1 = _mm_extract_epi64(v, 1);
+    const double d[2] = { (double)i0, (double)i1 };
+    return _mm_load_pd(d);
+  }
+
+#else
+  #define uv_load_i64(ptr)       (*(const int64_t*)(ptr))
+  #define uv_loadu_i64(ptr)      (*(const int64_t*)(ptr))
+  #define uv_store_i64(ptr, v)   (*(int64_t*)(ptr) = (v))
+  #define uv_storeu_i64(ptr, v)  (*(int64_t*)(ptr) = (v))
+
+  #define uv_cvt_f64_i64(v)      (int64_t)(v)
+  #define uv_cvt_i64_f64(v)      (double)(v)
 #endif
 
 
