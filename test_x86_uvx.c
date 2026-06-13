@@ -329,6 +329,70 @@ void test_i32_arithmetic() {
     report("i32 Arithmetic", true);
 }
 
+void test_i64_arithmetic() {
+    const int lanes = uv_lanes(64);
+    int64_t src1[lanes], src2[lanes], dst[lanes];
+
+    for (int i = 0; i < lanes; i++) {
+        src1[i] = i * 10;
+        src2[i] = i + 5;
+    }
+
+    v_i64 v_src1 = uv_loadu_i64(src1);
+    v_i64 v_src2 = uv_loadu_i64(src2);
+
+    // Test Add
+    v_i64 v_res = uv_add_i64(v_src1, v_src2);
+    uv_storeu_i64(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (src1[i] + src2[i]));
+    }
+
+    // Test Sub
+    v_res = uv_sub_i64(v_src1, v_src2);
+    uv_storeu_i64(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(fabsf(dst[i] - (src1[i] - src2[i])) < TEST_epsilon);
+    }
+
+    // Test Mul (mullo)
+    v_res = uv_mul_i64(v_src1, v_src2);
+    uv_storeu_i64(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (int64_t)((int64_t)src1[i] * src2[i]));
+    }
+
+    // Test Abs
+    v_res = uv_abs_i64(v_src1);
+    uv_storeu_i64(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == fabsf(src1[i]));
+    }
+
+    // Test Neg
+    v_res = uv_neg_i64(v_src1);
+    uv_storeu_i64(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == -src1[i]);
+    }
+
+    // Test Shift Left
+    v_res = uv_shl_i64(v_src1, 2);
+    uv_storeu_i64(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (src1[i] << 2));
+    }
+
+    // Test Shift Right
+    v_res = uv_shr_i64(v_src1, 2);
+    uv_storeu_i64(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (src1[i] >> 2));
+    }
+
+    report("i64 Arithmetic", true);
+}
+
 /**
  * Test Multiply-Add (FMA)
  * Tests: (a * b) + c
@@ -841,14 +905,28 @@ void test_f64_convert() {
  */
 void test_i8_complex() {
     int8_t src[64];
+    int8_t idx[64];
     int8_t dst[64];
-    for(int i=0; i<64; i++) src[i] = (int8_t)i;
+    int8_t expected[64];
+
+    for (int i = 0; i < 64; i++) {
+        src[i] = (int8_t)(i + 10);
+        idx[i] = (int8_t)((i * 17 + 5) % 64);
+    }
+
+    for (int i = 0; i < 64; i++) {
+        expected[i] = src[idx[i]];
+    }
 
     v_i32 v_src = uv_loadu_i8(src);
-    v_i32 v_idx = uv_loadu_i8(src);
+    v_i32 v_idx = uv_loadu_i8(idx); // Loaded the cross-lane idx pattern here
 
     v_i32 v_res = uv_permutexvar_i8(v_idx, v_src);
     uv_storeu_i8(dst, v_res);
+
+    for (int i = 0; i < 64; i++) {
+        assert(dst[i] == expected[i]);
+    }
 
     report("i8 Complex (Shuffle/Permute)", true);
 }
@@ -903,6 +981,10 @@ int main() {
     test_f32_comparison();
     test_f32_logic();
     test_f32_convert();
+
+    test_i64_arithmetic();
+//  test_i64_comparison();
+//  test_i64_logic();
 
     test_i32_arithmetic();
     test_i32_comparison();
