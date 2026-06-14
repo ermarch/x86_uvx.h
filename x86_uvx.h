@@ -1221,7 +1221,7 @@
     #define uv_cmpeq_i8(a, b)    _mm512_cmpeq_epi8_mask(a, b)
     #define uv_cmplt_i8(a, b)    _mm512_cmplt_epi8_mask(a, b)
 
-    #define uv_shuffle_i8(a, b)        _mm512_shuffle_epi8(a, b)
+    #define uv_shuffle_i8(a, b)        _mm512_s nlooks like it can be made smaller by lettshuffle_epi8(a, b)
     #if defined(__AVX512VBMI__)
       #define uv_permutexvar_i8(idx, v)  _mm512_permutexvar_epi8(idx, v)
     #else
@@ -1357,16 +1357,13 @@
   #define uv_shuffle_i8(a, b)        _mm256_shuffle_epi8(a, b)
 
   static inline v_i64 uv_permutexvar_i8(v_i64 idx, v_i64 v) {
-    __m256i a_lo_lo = _mm256_permute2x128_si256(v, v, 0x00);
-    __m256i a_hi_hi = _mm256_permute2x128_si256(v, v, 0x11);
-    __m256i low_nibble = _mm256_and_si256(idx, _mm256_set1_epi8(0x0F));
-    __m256i bit4_mask = _mm256_and_si256(idx, _mm256_set1_epi8(0x10));
-    __m256i select_hi = _mm256_cmpeq_epi8(bit4_mask, _mm256_set1_epi8(0x10));
-    __m256i low_shuffle_idx  = _mm256_or_si256(low_nibble, select_hi);
-    __m256i high_shuffle_idx = _mm256_or_si256(low_nibble, _mm256_andnot_si256(select_hi, _mm256_set1_epi8(0x80)));
-    __m256i res_low  = _mm256_shuffle_epi8(a_lo_lo, low_shuffle_idx);
-    __m256i res_high = _mm256_shuffle_epi8(a_hi_hi, high_shuffle_idx);
-    return _mm256_or_si256(res_low, res_high);
+    __m256i a_low  = _mm256_permute2x128_si256(v, v, 0x00);
+    __m256i a_high = _mm256_permute2x128_si256(v, v, 0x11);
+    __m256i lane_select_mask = _mm256_cmpgt_epi8(_mm256_setzero_si256(),
+                               _mm256_slli_epi32(idx, 3));
+    __m256i shuffled_low  = _mm256_shuffle_epi8(a_low, idx);
+    __m256i shuffled_high = _mm256_shuffle_epi8(a_high, idx);
+    return _mm256_blendv_epi8(shuffled_low, shuffled_high, lane_select_mask);
   }
 
   static inline v_i64 uv_compress_i8(v_i64 mask, v_i64 v) {
@@ -1407,8 +1404,23 @@
     }
   #endif
   static inline __m128i uv_permutexvar_i8(__m128i idx, __m128i v) {
+#if 1
+    __m128i a_low  = _mm_unpacklo_epi64(v, v);
+    __m128i a_high = _mm_unpackhi_epi64(v, v);
+    __m128i shuffled_low  = uv_shuffle_i8(a_low, idx);
+    __m128i shuffled_high = uv_shuffle_i8(a_high, idx);
+    __m128i bit3_mask = _mm_set1_epi8(0x08);
+    __m128i lane_select_mask = _mm_cmpeq_epi8(_mm_and_si128(idx, bit3_mask), bit3_mask);
+    __m128i result = _mm_or_si128(
+        _mm_andnot_si128(lane_select_mask, shuffled_low),
+        _mm_and_si128(lane_select_mask, shuffled_high)
+    );
+
+    return result;
+#else
     __m128i masked_idx = _mm_and_si128(idx, _mm_set1_epi8(0x0F));
     return uv_shuffle_i8(v, masked_idx);
+#endif
   }
   static inline __m128i uv_compress_i8(__m128i mask, __m128i v) {
     alignas(16) int8_t src[16];

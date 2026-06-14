@@ -904,17 +904,18 @@ void test_f64_convert() {
  * Test Integer 8 (Complex Shuffles)
  */
 void test_i8_complex() {
-    int8_t src[64];
-    int8_t idx[64];
-    int8_t dst[64];
-    int8_t expected[64];
+    const int bytes = UV_LANES_8;
+    int8_t src[bytes];
+    int8_t idx[bytes];
+    int8_t dst[bytes];
+    int8_t expected[bytes];
 
-    for (int i = 0; i < 64; i++) {
+    for (int i = 0; i < bytes; i++) {
         src[i] = (int8_t)(i + 10);
-        idx[i] = (int8_t)((i * 17 + 5) % 64);
+        idx[i] = (int8_t)((i * 17 + 5) % bytes);
     }
 
-    for (int i = 0; i < 64; i++) {
+    for (int i = 0; i < bytes; i++) {
         expected[i] = src[idx[i]];
     }
 
@@ -924,7 +925,7 @@ void test_i8_complex() {
     v_i32 v_res = uv_permutexvar_i8(v_idx, v_src);
     uv_storeu_i8(dst, v_res);
 
-    for (int i = 0; i < 64; i++) {
+    for (int i = 0; i < bytes; i++) {
         assert(dst[i] == expected[i]);
     }
 
