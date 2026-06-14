@@ -924,6 +924,49 @@ void test_i32_logic() {
     report("i32 Bitwise Logic", true);
 }
 
+void test_i64_logic() {
+    const int lanes = uv_lanes(64);
+    int64_t src1[lanes], src2[lanes], dst[lanes];
+
+    for (int i = 0; i < lanes; i++) {
+        src1[i] = 1;
+        src2[i] = 2;
+    }
+    
+    v_i64 v1 = uv_loadu_i64(src1);
+    v_i64 v2 = uv_loadu_i64(src2);
+    
+    // Test AND
+    v_i64 v_res = uv_and_i64(v1, v2);
+    uv_storeu_i64(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (src1[i] & src2[i]));
+    }
+    
+    // Test ANDNOT
+    v_res = uv_andnot_i64(v1, v2);
+    uv_storeu_i64(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (~src1[i] & src2[i]));
+    }
+    
+    // Test OR
+    v_res = uv_or_i64(v1, v2);
+    uv_storeu_i64(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (src1[i] | src2[i]));
+    }
+
+    // Test XOR
+    v_res = uv_xor_i64(v1, v2);
+    uv_storeu_i64(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == (src1[i] ^ src2[i]));
+    }
+
+    report("i64 Bitwise Logic", true);
+}
+
 void test_f32_convert() {
     const int lanes = uv_lanes(32);
     int32_t i_src[lanes], i_dst[lanes];
@@ -1063,7 +1106,7 @@ int main() {
 
     test_i64_arithmetic();
     test_i64_comparison();
-//  test_i64_logic();
+    test_i64_logic();
 
     test_i32_arithmetic();
     test_i32_comparison();
