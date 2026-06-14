@@ -143,6 +143,29 @@ static inline v_f64 scalar_cmplt_f64(double *a, double *b) {
    return uv_select_f64(v_mask, v_val_true, v_val_false);
 }
 
+// I64
+static inline v_i64 scalar_cmpgt_i64(int64_t *a, int64_t *b) {
+   const v_i64 v_val_true = uv_dup_i64(1ULL);
+   const v_i64 v_val_false = uv_dup_i64(0ULL);
+
+   v_i64 v_a = uv_loadu_i64(a);
+   v_i64 v_b = uv_loadu_i64(b);
+
+   v_mask_i8 v_mask = uv_cmpgt_i64(v_a, v_b);
+   return uv_select_i64(v_mask, v_val_true, v_val_false);
+}
+
+static inline v_i64 scalar_cmplt_i64(int64_t *a, int64_t *b) {
+   const v_i64 v_val_true = uv_dup_i64(1);
+   const v_i64 v_val_false = uv_dup_i64(0);
+
+   v_i64 v_a = uv_loadu_i64(a);
+   v_i64 v_b = uv_loadu_i64(b);
+
+   v_mask_i8 v_mask = uv_cmplt_i64(v_a, v_b);
+   return uv_select_i64(v_mask, v_val_true, v_val_false);
+}
+
 
 /**
  * Test Arithmetic
@@ -681,6 +704,61 @@ void test_i32_comparison() {
     report("i32 Comparison", true);
 }
 
+void test_i64_comparison() {
+    const int lanes = uv_lanes(64);
+    int64_t src1[lanes], src2[lanes], dst[lanes];
+
+    for (int i = 0; i < lanes; i++) {
+        src1[i] = (int64_t)(i + 1) * 1.5f;
+        src2[i] = (int64_t)(i + 1) * 2.0f;
+    }
+
+    v_i64 v_src1 = uv_loadu_i64(src1);
+    v_i64 v_src2 = uv_loadu_i64(src2);
+
+    // Test Min
+    v_i64 v_res = uv_min_i64(v_src1, v_src2);
+    uv_storeu_i64(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == _MIN(src1[i], src2[i]));
+    }
+
+    // Test Max
+    v_res = uv_max_i64(v_src1, v_src2);
+    uv_storeu_i64(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == _MAX(src1[i], src2[i]));
+    }
+
+    // Test Greater-than and Select
+    int64_t a_src[UV_MAX_LANES] = {
+               1,         -1,         0,         5,
+               1, -INT64_MAX, INT64_MAX,         1,
+       INT64_MIN,  INT64_MIN,     1e30f,         0,
+       INT64_MIN,  INT64_MIN,     1e30f,         0
+    };
+    int64_t b_src[UV_MAX_LANES] = {
+            0.5f,         -2,         1,         5,
+       INT64_MAX,          0, INT64_MAX, INT64_MIN,
+               1,  INT64_MIN,     1e30f,         0,
+               1,  INT64_MIN,     1e30f,         0
+    };
+    union { v_i64 epi64; int64_t i[UV_MAX_LANES]; } res;
+    res.epi64 = scalar_cmpgt_i64(a_src, b_src);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] > b_src[r]) == res.i[r]);
+    }
+
+    // Test Less-than
+    res.epi64 = scalar_cmplt_i64(a_src, b_src);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] < b_src[r]) == res.i[r]);
+    }
+
+    report("i64 Comparison", true);
+}
+
+
 /**
  * Test Bitwise/Logic
  * We compare bit patterns (uint32_t) to avoid NaN comparison issues.
@@ -984,7 +1062,7 @@ int main() {
     test_f32_convert();
 
     test_i64_arithmetic();
-//  test_i64_comparison();
+    test_i64_comparison();
 //  test_i64_logic();
 
     test_i32_arithmetic();

@@ -697,6 +697,8 @@
   #define uv_loadu_i64(ptr)      _mm512_loadu_si512((__m512i const*)(ptr))
   #define uv_store_i64(ptr, v)   _mm512_storeu_si512((__m512i*)(ptr), (v))
   #define uv_storeu_i64(ptr, v)  _mm512_storeu_si512((__m512i*)(ptr), (v))
+  #define uv_setzero_i64()       _mm512_setzero_si512()
+  #define uv_dup_i64(val)        _mm512_set1_epi64(val)
 
   #define uv_add_i64(a, b)       _mm512_add_epi64(a, b)
   #define uv_sub_i64(a, b)       _mm512_sub_epi64(a, b)
@@ -722,6 +724,15 @@
     __m512i zero = _mm512_setzero_si512();
     return _mm512_sub_epi64(zero, v);
   }
+
+  #define uv_cmpgt_i64(a, b)     _mm512_cmp_epi64_mask(a, b, 3)
+  #define uv_cmplt_i64(a, b)     _mm512_cmp_epi64_mask(a, b, 1)
+  #define uv_select_i64(m, t, f) _mm512_mask_blend_epi64(m, f, t)
+
+  #define uv_and_i64(a, b)       _mm512_and_si512(a, b)
+  #define uv_andnot_i64(a, b)    _mm512_andnot_si512(a, b)
+  #define uv_or_i64(a, b)        _mm512_or_si512(a, b)
+  #define uv_xor_i64(a, b)       _mm512_xor_si512(a, b)
 
   #define uv_shl_i64(v, imm)     _mm512_slli_epi64(v, imm)
   #define uv_shr_i64(v, imm)     _mm512_srai_epi64(v, imm)
@@ -760,6 +771,21 @@
   #define uv_loadu_i64(ptr)      _mm256_loadu_si256((__m256i const*)(ptr))
   #define uv_store_i64(ptr, v)   _mm256_store_si256((__m256i*)(ptr), (v))
   #define uv_storeu_i64(ptr, v)  _mm256_storeu_si256((__m256i*)(ptr), (v))
+  #define uv_setzero_i64()       _mm256_setzero_si256()
+  #define uv_dup_i64(val)        _mm256_set1_epi64x(val)
+
+  #define uv_cmpgt_i64(a, b)     _mm256_cmpgt_epi64(a, b)
+  #define uv_cmplt_i64(a, b)     _mm256_cmpgt_epi64(b, a)
+  #if defined(__AVX10__)
+    #define uv_select_i64(m, t, f) _mm256_mask_blend_epi64(m, f, t)
+  #else
+    #define uv_select_i64(m, t, f) _mm256_blendv_epi8(f, t ,m)
+  #endif
+
+  #define uv_and_i64(a, b)       _mm256_and_si256(a, b)
+  #define uv_andnot_i64(a, b)    _mm256_andnot_si256(a, b)
+  #define uv_or_i64(a, b)        _mm256_or_si256(a, b)
+  #define uv_xor_i64(a, b)       _mm256_xor_si256(a, b)
 
   #define uv_shl_i64(v, imm)     _mm256_slli_epi64(v, imm)
   static inline v_i64 uv_shr_i64(v_i64 v, unsigned int imm) {
@@ -783,9 +809,14 @@
     __m256i cross_terms_shifted = _mm256_slli_epi64(cross_terms, 32);
     return _mm256_add_epi64(low_low, cross_terms_shifted);
   }
-  #define uv_div_i64(a, b)       _mm256_div_epi64(a, b)
-  #define uv_max_i64(a, b)       _mm256_max_epi64(a, b)
-  #define uv_min_i64(a, b)       _mm256_min_epi64(a, b)
+  static inline v_i64 uv_max_i64(v_i64 a, v_i64 b) {
+    return  _mm256_or_si256(_mm256_and_si256(_mm256_cmpgt_epi64(a, b), a),
+                            _mm256_andnot_si256(_mm256_cmpgt_epi64(a, b), b));
+  }
+  static inline v_i64 uv_min_i64(v_i64 a, v_i64 b) {
+    return _mm256_or_si256(_mm256_and_si256(_mm256_cmpgt_epi64(b, a), a),
+                           _mm256_andnot_si256(_mm256_cmpgt_epi64(b, a), b));
+  }
   static inline v_i64 uv_abs_i64(v_i64 v) {
     __m256i mask = uv_shl_i64(v, 31);
     __m256i xored = _mm256_xor_si256(v, mask);
@@ -821,22 +852,32 @@
   #define uv_loadu_i64(ptr)      _mm_loadu_si128((__m128i const*)(ptr))
   #define uv_store_i64(ptr, v)   _mm_store_si128((__m128i*)(ptr), (v))
   #define uv_storeu_i64(ptr, v)  _mm_storeu_si128((__m128i*)(ptr), (v))
+  #define uv_setzero_i64()       _mm_setzero_si128()
+  #define uv_dup_i64(val)        _mm_set1_epi64x(val)
 
   #define uv_add_i64(a, b)       _mm_add_epi64(a, b)
   #define uv_sub_i64(a, b)       _mm_sub_epi64(a, b)
-  #if defined(__SSE4_1__)
-    #define uv_max_i64(a, b)     _mm_max_epi64(a, b)
-    #define uv_min_i64(a, b)     _mm_min_epi64(a, b)
-  #else
-    static inline v_i64 uv_max_i64(v_i64 a, v_i64 b) {
-      return  _mm_or_si128(_mm_and_si128(_mm_cmpgt_epi64(a, b), a),
-                           _mm_andnot_si128(_mm_cmpgt_epi64(a, b), b));
-    }
-    static inline v_i64 uv_min_i64(v_i64 a, v_i64 b) {
-      return _mm_or_si128(_mm_and_si128(_mm_cmpgt_epi64(b, a), a),
-                          _mm_andnot_si128(_mm_cmpgt_epi64(b, a), b));
+  #if !defined(__SSE4_2__)
+    static inline __m128i _mm_cmpgt_epi64(__m128i a, __m128i b) {
+    __m128i sign_bias = _mm_set1_epi32(0x80000000);
+    __m128i a_biased  = _mm_xor_si128(a, sign_bias);
+    __m128i b_biased  = _mm_xor_si128(b, sign_bias);
+    __m128i gt_hi = _mm_cmpgt_epi32(a, b);
+    __m128i eq_hi = _mm_cmpeq_epi32(a, b);
+    __m128i gt_lo = _mm_cmpgt_epi32(a_biased, b_biased);
+    __m128i gt_lo_shuffled = _mm_shuffle_epi32(gt_lo, _MM_SHUFFLE(2, 2, 0, 0));
+    __m128i combined = _mm_or_si128(gt_hi, _mm_and_si128(eq_hi, gt_lo_shuffled));
+    return _mm_shuffle_epi32(combined, _MM_SHUFFLE(3, 3, 1, 1));
     }
   #endif
+  static inline v_i64 uv_max_i64(v_i64 a, v_i64 b) {
+    return  _mm_or_si128(_mm_and_si128(_mm_cmpgt_epi64(a, b), a),
+                         _mm_andnot_si128(_mm_cmpgt_epi64(a, b), b));
+  }
+  static inline v_i64 uv_min_i64(v_i64 a, v_i64 b) {
+    return _mm_or_si128(_mm_and_si128(_mm_cmpgt_epi64(b, a), a),
+                        _mm_andnot_si128(_mm_cmpgt_epi64(b, a), b));
+  }
   static inline v_i64 uv_mul_i64(v_i64 a, v_i64 b) {
     __m128i res_lo = _mm_mul_epu32(a, b);
     __m128i a_hi = _mm_srli_epi64(a, 32);
@@ -856,6 +897,19 @@
     __m128i zero = _mm_setzero_si128();
     return _mm_sub_epi64(zero, v);
   }
+
+  #define uv_cmpgt_i64(a, b)     _mm_cmpgt_epi64(a, b)
+  #define uv_cmplt_i64(a, b)     _mm_cmpgt_epi64(b, a)
+  #if defined(__SSE4_1__)
+    #define uv_select_i64(m, t, f) _mm_blendv_epi8(f, t, m)
+  #else
+    #define uv_select_i64(m, t, f) _mm_or_si128(_mm_andnot_si128(m, f), _mm_and_si128(m, t))
+  #endif
+
+  #define uv_and_i64(a, b)       _mm_and_si128(a, b)
+  #define uv_andnot_i64(a, b)    _mm_andnot_si128(a, b)
+  #define uv_or_i64(a, b)        _mm_or_si128(a, b)
+  #define uv_xor_i64(a, b)       _mm_xor_si128(a, b)
 
   #define uv_shl_i64(v, imm)     _mm_slli_epi64(v, imm)
   static inline v_i64 uv_shr_i64(v_i64 v, unsigned int imm) {
@@ -887,6 +941,8 @@
   #define uv_loadu_i64(ptr)      (*(const int64_t*)(ptr))
   #define uv_store_i64(ptr, v)   (*(int64_t*)(ptr) = (v))
   #define uv_storeu_i64(ptr, v)  (*(int64_t*)(ptr) = (v))
+  #define uv_setzero_i64()       (0ULL)
+  #define uv_dup_i64(v)          (v)
 
   #define uv_add_i64(a, b)       ((a) + (b))
   #define uv_sub_i64(a, b)       ((a) - (b))
@@ -895,6 +951,15 @@
   #define uv_min_i64(a, b)       ((a) < (b) ? (a) : (b))
   #define uv_abs_i64(v)          ((v) < 0 ? -(v) : (v))
   #define uv_neg_i64(v)          (-(v))
+
+  #define uv_cmpgt_i64(a, b)     ((a) > (b))
+  #define uv_cmplt_i64(a, b)     ((a) < (b))
+  #define uv_select_i64(m, t, f) ((m) ? (t) : (f))
+
+  #define uv_and_i64(a, b)       ((a) & (b))
+  #define uv_andnot_i64(a, b)    (~(a) & (b))
+  #define uv_or_i64(a, b)        ((a) | (b))
+  #define uv_xor_i64(a, b)       ((a) ^ (b))
 
   #define uv_shl_i64(v, imm)     ((v) << (imm))
   #define uv_shr_i64(v, imm)     ((v) >> (imm))
