@@ -649,7 +649,7 @@ extern "C" {
   #define uv_cmpnlt_f64(a, b)    _mm512_cmp_pd_mask(a, b, _CMP_NLT_US)
   #define uv_cmpge_f64(a, b)     _mm512_cmp_pd_mask(a, b, _CMP_GE_OS)
   #define uv_cmpnle_f64(a, b)    _mm512_cmp_pd_mask(a, b, _CMP_NLE_US)
-  #define uv_cmpgt_f64(a, b)     _mm512_cmp_ps_mask(a, b, _CMP_GT_OS)
+  #define uv_cmpgt_f64(a, b)     _mm512_cmp_pd_mask(a, b, _CMP_GT_OS)
 
   #define uv_select_f64(m, t, f) _mm512_mask_blend_pd(m, f, t)
 
@@ -1089,8 +1089,16 @@ extern "C" {
 
   #if defined(__SSE4_1__)
     #define uv_select_i64(m, t, f) _mm_blendv_epi8(f, t, m)
+    #define uv_extract_i64(a, ndx) _mm_extract_epi64(a, ndx)
   #else
     #define uv_select_i64(m, t, f) _mm_or_si128(_mm_andnot_si128(m, f), _mm_and_si128(m, t))
+    static inline int64_t uv_extract_i64(v_i64 a, const int ndx) {
+      if (ndx == 0) {
+        return _mm_cvtsi128_si64(a);
+      } else {
+        return _mm_cvtsi128_si64(_mm_srli_si128(a, 8));
+      }
+    }
   #endif
 
   #define uv_add_i64(a, b)       _mm_add_epi64(a, b)
@@ -1150,8 +1158,8 @@ extern "C" {
     return _mm_load_si128((__m128i const*)i);
   }
   static inline v_f64 uv_cvt_i64_f64(v_i64 v) {
-    int64_t i0 = _mm_extract_epi64(v, 0);
-    int64_t i1 = _mm_extract_epi64(v, 1);
+    int64_t i0 = uv_extract_i64(v, 0);
+    int64_t i1 = uv_extract_i64(v, 1);
     const double d[2] = { (double)i0, (double)i1 };
     return _mm_load_pd(d);
   }
