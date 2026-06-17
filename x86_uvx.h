@@ -620,7 +620,7 @@ extern "C" {
 
   static inline v_f64 uv_not_f64(v_f64 v) {
     __m512i a = _mm512_castpd_si512(v);
-    return _mm512_castsi512_pd(_mm512_ternarylogic_epi64(v, v, v, 0x55));
+    return _mm512_castsi512_pd(_mm512_ternarylogic_epi64(a, a, a, 0x55));
   }
   #if defined(__AVX512DQ__) || defined(__AVX10__) || defined(_MSC_VER)
     #define uv_and_f64(a, b)     _mm512_and_pd(a, b)
