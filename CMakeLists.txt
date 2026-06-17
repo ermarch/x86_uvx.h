@@ -3,7 +3,7 @@ project(x86_uvx.h)
 
 FUNCTION(CREATE_UV_TEST TEST_NAME EXT NOFLAGS)
   set(EXEC_NAME "${TEST_NAME}-${EXT}")
-  add_executable(${EXEC_NAME} ${TEST_NAME}.c)
+  add_executable(${EXEC_NAME} ${TEST_NAME}.cpp)
   separate_arguments(FLAG_LIST NATIVE_COMMAND "${NOFLAGS}")
   target_link_libraries(${EXEC_NAME} "-lm")
   target_compile_options(${EXEC_NAME} PRIVATE

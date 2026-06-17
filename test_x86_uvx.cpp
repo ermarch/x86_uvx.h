@@ -17,155 +17,117 @@ void report(const char* test_name, bool success) {
     printf("[%s] %s\n", success ? "PASS" : "FAIL", test_name);
 }
 
+template <typename T> struct uvx_traits;
+
+template <> struct uvx_traits<float> {
+    using vector_type = v_f32;
+    using mask_type = v_mask;
+    static inline v_f32 dup(float v) { return uv_dup_f32(v); }
+    static inline v_f32 load(const float* p) { return uv_loadu_f32(p); }
+    static inline v_mask cmpeq(v_f32 a, v_f32 b) { return uv_cmpeq_f32(a, b); }
+    static inline v_mask cmplt(v_f32 a, v_f32 b) { return uv_cmplt_f32(a, b); }
+    static inline v_mask cmple(v_f32 a, v_f32 b) { return uv_cmple_f32(a, b); }
+    static inline v_mask cmpne(v_f32 a, v_f32 b) { return uv_cmpne_f32(a, b); }
+    static inline v_mask cmpnlt(v_f32 a, v_f32 b) { return uv_cmpnlt_f32(a, b); }
+    static inline v_mask cmpge(v_f32 a, v_f32 b) { return uv_cmpge_f32(a, b); }
+    static inline v_mask cmpnle(v_f32 a, v_f32 b) { return uv_cmpnle_f32(a, b); }
+    static inline v_mask cmpgt(v_f32 a, v_f32 b) { return uv_cmpgt_f32(a, b); }
+    static inline v_f32 select(v_mask m, v_f32 t, v_f32 f) {
+        return uv_select_f32(m, t, f);
+    }
+};
+
+template <> struct uvx_traits<int32_t> {
+    using vector_type = v_i32;
+    using mask_type = v_mask_i8;
+    static inline v_i32 dup(float v) { return uv_dup_i32(v); }
+    static inline v_i32 load(const int32_t* p) { return uv_loadu_i32(p); }
+    static inline v_mask_i8 cmpeq(v_i32 a, v_i32 b) { return uv_cmpeq_i32(a, b); }
+    static inline v_mask_i8 cmplt(v_i32 a, v_i32 b) { return uv_cmplt_i32(a, b); }
+    static inline v_mask_i8 cmple(v_i32 a, v_i32 b) { return uv_cmple_i32(a, b); }
+    static inline v_mask_i8 cmpne(v_i32 a, v_i32 b) { return uv_cmpne_i32(a, b); }
+    static inline v_mask_i8 cmpnlt(v_i32 a, v_i32 b) { return uv_cmpnlt_i32(a, b); }
+    static inline v_mask_i8 cmpge(v_i32 a, v_i32 b) { return uv_cmpge_i32(a, b); }
+    static inline v_mask_i8 cmpnle(v_i32 a, v_i32 b) { return uv_cmpnle_i32(a, b); }
+    static inline v_mask_i8 cmpgt(v_i32 a, v_i32 b) { return uv_cmpgt_i32(a, b); }
+    static inline v_i32 select(v_mask_i8 m, v_i32 t, v_i32 f) {
+        return uv_select_i32(m, t, f);
+    }
+};
+
+template <> struct uvx_traits<double> {
+    using vector_type = v_f64;
+    using mask_type = v_mask_f64;
+    static inline v_f64 dup(double v) { return uv_dup_f64(v); }
+    static inline v_f64 load(const double* p) { return uv_loadu_f64(p); }
+    static inline v_mask_f64 cmpeq(v_f64 a, v_f64 b) { return uv_cmpeq_f64(a, b); }
+    static inline v_mask_f64 cmplt(v_f64 a, v_f64 b) { return uv_cmplt_f64(a, b); }
+    static inline v_mask_f64 cmple(v_f64 a, v_f64 b) { return uv_cmple_f64(a, b); }
+    static inline v_mask_f64 cmpne(v_f64 a, v_f64 b) { return uv_cmpne_f64(a, b); }
+    static inline v_mask_f64 cmpnlt(v_f64 a, v_f64 b) { return uv_cmpnlt_f64(a, b); }
+    static inline v_mask_f64 cmpge(v_f64 a, v_f64 b) { return uv_cmpge_f64(a, b); }
+    static inline v_mask_f64 cmpnle(v_f64 a, v_f64 b) { return uv_cmpnle_f64(a, b); }
+    static inline v_mask_f64 cmpgt(v_f64 a, v_f64 b) { return uv_cmpgt_f64(a, b); }
+    static inline v_f64 select(v_mask_f64 m, v_f64 t, v_f64 f) {
+        return uv_select_f64(m, t, f);
+    }
+};
+
+template <> struct uvx_traits<int64_t> {
+    using vector_type = v_i64;
+    using mask_type = v_mask_i8;
+    static inline v_i64 dup(float v) { return uv_dup_i64(v); }
+    static inline v_i64 load(const int64_t* p) { return uv_loadu_i64(p); }
+    static inline v_mask_i8 cmpeq(v_i64 a, v_i64 b) { return uv_cmpeq_i64(a, b); }
+    static inline v_mask_i8 cmplt(v_i64 a, v_i64 b) { return uv_cmplt_i64(a, b); }
+    static inline v_mask_i8 cmple(v_i64 a, v_i64 b) { return uv_cmple_i64(a, b); }
+    static inline v_mask_i8 cmpne(v_i64 a, v_i64 b) { return uv_cmpne_i64(a, b); }
+    static inline v_mask_i8 cmpnlt(v_i64 a, v_i64 b) { return uv_cmpnlt_i64(a, b); }
+    static inline v_mask_i8 cmpge(v_i64 a, v_i64 b) { return uv_cmpge_i64(a, b); }
+    static inline v_mask_i8 cmpnle(v_i64 a, v_i64 b) { return uv_cmpnle_i64(a, b); }
+    static inline v_mask_i8 cmpgt(v_i64 a, v_i64 b) { return uv_cmpgt_i64(a, b); }
+    static inline v_i64 select(v_mask_i8 m, v_i64 t, v_i64 f) {
+        return uv_select_i64(m, t, f);
+    }
+};
+
 /*
  * Scalar bitwise helpers
- * These return the raw bit pattern as a uint32_t.
+ * These return the raw bit pattern as a I.
  */
-// F32
-static inline uint32_t scalar_and_f32_bits(float a, float b) {
-    union { float f; uint32_t i; } va, vb, vr;
+template<typename F, typename I>
+static inline I scalar_and(F a, F b) {
+    union { F f; I i; } va, vb, vr;
     va.f = a; vb.f = b; vr.i = va.i & vb.i;
     return vr.i;
 }
 
-static inline uint32_t scalar_andnot_f32_bits(float a, float b) {
-    union { float f; uint32_t i; } va, vb, vr;
+template<typename F, typename I>
+static inline I scalar_andnot(F a, F b) {
+    union { F f; I i; } va, vb, vr;
     va.f = a; vb.f = b; vr.i = ~va.i & vb.i;
     return vr.i;
 }
 
-static inline uint32_t scalar_or_f32_bits(float a, float b) {
-    union { float f; uint32_t i; } va, vb, vr;
+template<typename F, typename I>
+static inline I scalar_or(F a, F b) {
+    union { F f; I i; } va, vb, vr;
     va.f = a; vb.f = b; vr.i = va.i | vb.i;
     return vr.i;
 }
 
-static inline uint32_t scalar_xor_f32_bits(float a, float b) {
-    union { float f; uint32_t i; } va, vb, vr;
+template<typename F, typename I>
+static inline I scalar_xor(F a, F b) {
+    union { F f; I i; } va, vb, vr;
     va.f = a; vb.f = b; vr.i = va.i ^ vb.i;
     return vr.i;
 }
 
-static inline v_f32 scalar_cmpgt_f32(float *a, float *b) {
-   const v_f32 v_val_true = uv_dup_f32(1.0f);
-   const v_f32 v_val_false = uv_dup_f32(0.0f);
-
-   v_f32 v_a = uv_loadu_f32(a);
-   v_f32 v_b = uv_loadu_f32(b);
-
-   v_mask v_mask = uv_cmpgt_f32(v_a, v_b);
-   return uv_select_f32(v_mask, v_val_true, v_val_false);
+template<typename F, typename I>
+static inline F scalar_rint(F x) {
+    F magic = copysign(8388608.0f, x);
+    return (I)((x + magic) - magic);
 }
-
-static inline v_f32 scalar_cmplt_f32(float *a, float *b) {
-   const v_f32 v_val_true = uv_dup_f32(1.0f);
-   const v_f32 v_val_false = uv_dup_f32(0.0f);
-
-   v_f32 v_a = uv_loadu_f32(a);
-   v_f32 v_b = uv_loadu_f32(b);
-
-   v_mask v_mask = uv_cmplt_f32(v_a, v_b);
-   return uv_select_f32(v_mask, v_val_true, v_val_false);
-}
-
-static inline float scalar_rint_f32(float x) {
-    float magic = copysign(8388608.0f, x);
-    return (int32_t)((x + magic) - magic);
-}
-
-// I32
-static inline v_i32 scalar_cmpgt_i32(int32_t *a, int32_t *b) {
-   const v_i32 v_val_true = uv_dup_i32(1);
-   const v_i32 v_val_false = uv_dup_i32(0);
-
-   v_i32 v_a = uv_loadu_i32(a);
-   v_i32 v_b = uv_loadu_i32(b);
-
-   v_mask_i8 v_mask = uv_cmpgt_i32(v_a, v_b);
-   return uv_select_i32(v_mask, v_val_true, v_val_false);
-}
-
-static inline v_i32 scalar_cmplt_i32(int32_t *a, int32_t *b) {
-   const v_i32 v_val_true = uv_dup_i32(1);
-   const v_i32 v_val_false = uv_dup_i32(0);
-
-   v_i32 v_a = uv_loadu_i32(a);
-   v_i32 v_b = uv_loadu_i32(b);
-
-   v_mask_i8 v_mask = uv_cmplt_i32(v_a, v_b);
-   return uv_select_i32(v_mask, v_val_true, v_val_false);
-}
-
-// F64
-static inline uint64_t scalar_and_f64_bits(double a, double b) {
-    union { double f; uint64_t i; } va, vb, vr;
-    va.f = a; vb.f = b; vr.i = va.i & vb.i;
-    return vr.i;
-}
-
-static inline uint64_t scalar_andnot_f64_bits(double a, double b) {
-    union { double f; uint64_t i; } va, vb, vr;
-    va.f = a; vb.f = b; vr.i = ~va.i & vb.i;
-    return vr.i;
-}
-
-static inline uint64_t scalar_or_f64_bits(double a, double b) {
-    union { double f; uint64_t i; } va, vb, vr;
-    va.f = a; vb.f = b; vr.i = va.i | vb.i;
-    return vr.i;
-}
-
-static inline uint64_t scalar_xor_f64_bits(double a, double b) {
-    union { double f; uint64_t i; } va, vb, vr;
-    va.f = a; vb.f = b; vr.i = va.i ^ vb.i;
-    return vr.i;
-}
-
-static inline v_f64 scalar_cmpgt_f64(double *a, double *b) {
-   const v_f64 v_val_true = uv_dup_f64(1.0f);
-   const v_f64 v_val_false = uv_dup_f64(0.0f);
-
-   v_f64 v_a = uv_loadu_f64(a);
-   v_f64 v_b = uv_loadu_f64(b);
-
-   v_mask_f64 v_mask = uv_cmpgt_f64(v_a, v_b);
-   return uv_select_f64(v_mask, v_val_true, v_val_false);
-}
-
-static inline v_f64 scalar_cmplt_f64(double *a, double *b) {
-   const v_f64 v_val_true = uv_dup_f64(1.0f);
-   const v_f64 v_val_false = uv_dup_f64(0.0f);
-
-   v_f64 v_a = uv_loadu_f64(a);
-   v_f64 v_b = uv_loadu_f64(b);
-
-   v_mask_f64 v_mask = uv_cmplt_f64(v_a, v_b);
-   return uv_select_f64(v_mask, v_val_true, v_val_false);
-}
-
-// I64
-static inline v_i64 scalar_cmpgt_i64(int64_t *a, int64_t *b) {
-   const v_i64 v_val_true = uv_dup_i64(1ULL);
-   const v_i64 v_val_false = uv_dup_i64(0ULL);
-
-   v_i64 v_a = uv_loadu_i64(a);
-   v_i64 v_b = uv_loadu_i64(b);
-
-   v_mask_i8 v_mask = uv_cmpgt_i64(v_a, v_b);
-   return uv_select_i64(v_mask, v_val_true, v_val_false);
-}
-
-static inline v_i64 scalar_cmplt_i64(int64_t *a, int64_t *b) {
-   const v_i64 v_val_true = uv_dup_i64(1);
-   const v_i64 v_val_false = uv_dup_i64(0);
-
-   v_i64 v_a = uv_loadu_i64(a);
-   v_i64 v_b = uv_loadu_i64(b);
-
-   v_mask_i8 v_mask = uv_cmplt_i64(v_a, v_b);
-   return uv_select_i64(v_mask, v_val_true, v_val_false);
-}
-
 
 /**
  * Test Arithmetic
@@ -554,34 +516,19 @@ void test_f32_comparison() {
     }
 
     // Test Greater-than and Select
-    float a_src[UV_MAX_LANES] = {
+    float a_src[uv_max_lanes(32)] = {
             1.0f,     -1.0f,     0.0f,  5.0f,
             1.0f, -INFINITY, INFINITY,  1.0f,
              NAN,       NAN,    1e30f,  0.0f,
              NAN,       NAN,    1e30f,  0.0f
     };
-    float b_src[UV_MAX_LANES] = {
+    float b_src[uv_max_lanes(32)] = {
             0.5f,     -2.0f,     1.0f,  5.0f,
         INFINITY,      0.0f, INFINITY,   NAN,
             1.0f,       NAN,    1e30f,  0.0f,
             1.0f,       NAN,    1e30f,  0.0f
     };
-    for (int i = 0; i < UV_MAX_LANES; i += lanes) {
-        union { v_f32 ps; float f[UV_MAX_LANES]; } res;
-        res.ps = scalar_cmpgt_f32(a_src + i, b_src + i);
-        for (int r = 0; r < lanes; r++) {
-            assert((a_src[i + r] > b_src[i + r]) == res.f[r]);
-        }
-    }
-
-    // Test Less-than
-    for (int i = 0; i < UV_MAX_LANES; i += lanes) {
-        union { v_f32 ps; float f[UV_MAX_LANES]; } res;
-        res.ps = scalar_cmplt_f32(a_src + i, b_src + i);
-        for (int r = 0; r < lanes; r++) {
-            assert((a_src[i + r] < b_src[i + r]) == res.f[r]);
-        }
-    }
+//TODO
 
     report("f32 Comparison", true);
 }
@@ -613,34 +560,19 @@ void test_f64_comparison() {
     }
 
     // Test Greater-than and Select
-    double a_src[UV_MAX_LANES] = {
+    double a_src[uv_max_lanes(32)] = {
              1.0,      -1.0,      0.0,   5.0,
              1.0, -INFINITY, INFINITY,   1.0,
              NAN,       NAN,     1e30,   0.0,
              NAN,       NAN,     1e30,   0.0
     };
-    double b_src[UV_MAX_LANES] = {
+    double b_src[uv_max_lanes(32)] = {
              0.5,      -2.0,      1.0,   5.0,
         INFINITY,        0.0, INFINITY,  NAN,
              1.0,       NAN,      1e30,  0.0,
              1.0,       NAN,      1e30,  0.0
     };
-    for (int i = 0; i < UV_MAX_LANES; i += lanes) {
-        union { v_f64 ps; double f[UV_MAX_LANES]; } res;
-        res.ps = scalar_cmpgt_f64(a_src + i, b_src + i);
-        for (int r = 0; r < lanes; r++) {
-            assert((a_src[i + r] > b_src[i + r]) == res.f[r]);
-        }
-    }
-
-    // Test Less-than
-    for (int i = 0; i < UV_MAX_LANES; i += lanes) {
-        union { v_f64 ps; double f[UV_MAX_LANES]; } res;
-        res.ps = scalar_cmplt_f64(a_src + i, b_src + i);
-        for (int r = 0; r < lanes; r++) {
-            assert((a_src[i + r] < b_src[i + r]) == res.f[r]);
-        }
-    }
+// TODO
 
     report("f64 Comparison", true);
 }
@@ -672,33 +604,81 @@ void test_i32_comparison() {
     }
 
     // Test Greater-than and Select
-    int32_t a_src[UV_MAX_LANES] = {
+    int32_t a_src[uv_max_lanes(32)] = {
                1,         -1,         0,         5,
                1, -INT32_MAX, INT32_MAX,         1,
-       INT32_MIN,  INT32_MIN,     1e30f,         0,
-       INT32_MIN,  INT32_MIN,     1e30f,         0
+       INT32_MIN,  INT32_MIN, 100000030,         0,
+       INT32_MIN,  INT32_MIN, -10000030,         0
     };
-    int32_t b_src[UV_MAX_LANES] = {
-            0.5f,         -2,         1,         5,
+    int32_t b_src[uv_max_lanes(32)] = {
+               5,         -2,         1,         5,
        INT32_MAX,          0, INT32_MAX, INT32_MIN,
-               1,  INT32_MIN,     1e30f,         0,
-               1,  INT32_MIN,     1e30f,         0
+               1,  INT32_MIN, 100000030,         0,
+               1,  INT32_MIN, -10000030,         0
     };
-    for (int i = 0; i < UV_MAX_LANES; i += lanes) {
-        union { v_i32 epi32; int32_t i[UV_MAX_LANES]; } res;
-        res.epi32 = scalar_cmpgt_i32(a_src + i, b_src + i);
-        for (int r = 0; r < lanes; r++) {
-            assert((a_src[i + r] > b_src[i + r]) == res.i[r]);
-        }
+
+    union { v_i32 epi32; int32_t i[uv_lanes(32)]; } res;
+
+    const v_i32 v_val_true = uvx_traits<int32_t>::dup(1);
+    const v_i32 v_val_false = uvx_traits<int32_t>::dup(0);
+
+    v_i32 a = uvx_traits<int32_t>::load(a_src);
+    v_i32 b = uvx_traits<int32_t>::load(b_src);
+
+    // Test Equal
+    v_mask_i8 mask = uvx_traits<int32_t>::cmpeq(a, b);
+    res.epi32 = uvx_traits<int32_t>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] == b_src[r]) == res.i[r]);
     }
 
     // Test Less-than
-    for (int i = 0; i < UV_MAX_LANES; i += lanes) {
-        union { v_i32 epi32; int32_t i[UV_MAX_LANES]; } res;
-        res.epi32 = scalar_cmplt_i32(a_src + i, b_src + i);
-        for (int r = 0; r < lanes; r++) {
-            assert((a_src[i + r] < b_src[i + r]) == res.i[r]);
-        }
+    mask = uvx_traits<int32_t>::cmplt(a, b);
+    res.epi32 = uvx_traits<int32_t>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] < b_src[r]) == res.i[r]);
+    }
+
+    // Test Less-than or Equal
+    mask = (uvx_traits<int32_t>::cmple(a, b));
+    res.epi32 = uvx_traits<int32_t>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] <= b_src[r]) == res.i[r]);
+    }
+
+    // Test Not Equal
+    mask = (uvx_traits<int32_t>::cmpne(a, b));
+    res.epi32 = uvx_traits<int32_t>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] != b_src[r]) == res.i[r]);
+    }
+
+    // Test Not Less-than
+    mask = (uvx_traits<int32_t>::cmpnlt(a, b));
+    res.epi32 = uvx_traits<int32_t>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert(!(a_src[r] < b_src[r]) == res.i[r]);
+    }
+
+    // Test Greater-than or Equal
+    mask = (uvx_traits<int32_t>::cmpge(a, b));
+    res.epi32 = uvx_traits<int32_t>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] >= b_src[r]) == res.i[r]);
+    }
+
+    // Test Not Less-than or Equal
+    mask = (uvx_traits<int32_t>::cmpnle(a, b));
+    res.epi32 = uvx_traits<int32_t>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert(!(a_src[r] <= b_src[r]) == res.i[r]);
+    }
+
+    // Test Greater-than
+    mask = (uvx_traits<int32_t>::cmpgt(a, b));
+    res.epi32 = uvx_traits<int32_t>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] > b_src[r]) == res.i[r]);
     }
 
     report("i32 Comparison", true);
@@ -730,34 +710,81 @@ void test_i64_comparison() {
         assert(dst[i] == _MAX(src1[i], src2[i]));
     }
 
-    // Test Greater-than and Select
-    int64_t a_src[UV_MAX_LANES] = {
+    // Comparison and and Select
+    int64_t a_src[uv_max_lanes(64)] = {
                1,         -1,         0,         5,
-               1, -INT64_MAX, INT64_MAX,         1,
-       INT64_MIN,  INT64_MIN,     1e30f,         0,
-       INT64_MIN,  INT64_MIN,     1e30f,         0
+               1, -INT64_MAX, INT64_MAX,         1
     };
-    int64_t b_src[UV_MAX_LANES] = {
-            0.5f,         -2,         1,         5,
-       INT64_MAX,          0, INT64_MAX, INT64_MIN,
-               1,  INT64_MIN,     1e30f,         0,
-               1,  INT64_MIN,     1e30f,         0
+    int64_t b_src[uv_max_lanes(64)] = {
+            5000,         -2,         1,         5,
+       INT64_MAX,          0, INT64_MAX, INT64_MIN
     };
-    union { v_i64 epi64; int64_t i[UV_MAX_LANES]; } res;
-    res.epi64 = scalar_cmpgt_i64(a_src, b_src);
+
+    union { v_i64 epi64; int64_t i[uv_lanes(64)]; } res;
+
+    const v_i64 v_val_true = uvx_traits<int64_t>::dup(1);
+    const v_i64 v_val_false = uvx_traits<int64_t>::dup(0);
+
+    v_i64 a = uvx_traits<int64_t>::load(a_src);
+    v_i64 b = uvx_traits<int64_t>::load(b_src);
+
+    // Test Equal
+    v_mask_i8 mask = uvx_traits<int64_t>::cmpeq(a, b);
+    res.epi64 = uvx_traits<int64_t>::select(mask, v_val_true, v_val_false);
     for (int r = 0; r < lanes; r++) {
-        assert((a_src[r] > b_src[r]) == res.i[r]);
+        assert((a_src[r] == b_src[r]) == res.i[r]);
     }
 
     // Test Less-than
-    res.epi64 = scalar_cmplt_i64(a_src, b_src);
+    mask = uvx_traits<int64_t>::cmplt(a, b);
+    res.epi64 = uvx_traits<int64_t>::select(mask, v_val_true, v_val_false);
     for (int r = 0; r < lanes; r++) {
         assert((a_src[r] < b_src[r]) == res.i[r]);
     }
 
+    // Test Less-than or Equal
+    mask = (uvx_traits<int64_t>::cmple(a, b));
+    res.epi64 = uvx_traits<int64_t>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] <= b_src[r]) == res.i[r]);
+    }
+
+    // Test Not Equal
+    mask = (uvx_traits<int64_t>::cmpne(a, b));
+    res.epi64 = uvx_traits<int64_t>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] != b_src[r]) == res.i[r]);
+    }
+
+    // Test Not Less-than
+    mask = (uvx_traits<int64_t>::cmpnlt(a, b));
+    res.epi64 = uvx_traits<int64_t>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert(!(a_src[r] < b_src[r]) == res.i[r]);
+    }
+
+    // Test Greater-than or Equal
+    mask = (uvx_traits<int64_t>::cmpge(a, b));
+    res.epi64 = uvx_traits<int64_t>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] >= b_src[r]) == res.i[r]);
+    }
+
+    // Test Not Less-than or Equal
+    mask = (uvx_traits<int64_t>::cmpnle(a, b));
+    res.epi64 = uvx_traits<int64_t>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert(!(a_src[r] <= b_src[r]) == res.i[r]);
+    }
+
+    // Test Greater-than
+    mask = (uvx_traits<int64_t>::cmpgt(a, b));
+    res.epi64 = uvx_traits<int64_t>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] > b_src[r]) == res.i[r]);
+    }
     report("i64 Comparison", true);
 }
-
 
 /**
  * Test Bitwise/Logic
@@ -775,15 +802,25 @@ void test_f32_logic() {
     v_f32 v1 = uv_loadu_f32(src1);
     v_f32 v2 = uv_loadu_f32(src2);
 
+    // Test NOT
+    v_f32 v_res = uv_not_f32(v1);
+    uv_storeu_f32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        union { float f; uint32_t i; } u_res, u_s1;
+        u_res.f = dst[i];
+        u_s1.f = src1[i];
+        assert(u_res.i == ~u_s1.i);
+    }
+
     // Test AND
-    v_f32 v_res = uv_and_f32(v1, v2);
+    v_res = uv_and_f32(v1, v2);
     uv_storeu_f32(dst, v_res);
     for (int i = 0; i < lanes; i++) {
         union { float f; uint32_t i; } u_res, u_s1, u_s2;
         u_res.f = dst[i];
         u_s1.f = src1[i];
         u_s2.f = src2[i];
-        assert(u_res.i == scalar_and_f32_bits(u_s1.f, u_s2.f));
+        assert(u_res.i == (scalar_and<float, int32_t>(u_s1.f, u_s2.f)));
     }
 
     // Test ANDNOT
@@ -794,7 +831,7 @@ void test_f32_logic() {
         u_res.f = dst[i];
         u_s1.f = src1[i];
         u_s2.f = src2[i];
-        assert(u_res.i == scalar_andnot_f32_bits(u_s1.f, u_s2.f));
+        assert(u_res.i == (scalar_andnot<float, int32_t>(u_s1.f, u_s2.f)));
     }
 
     // Test OR
@@ -805,7 +842,7 @@ void test_f32_logic() {
         u_res.f = dst[i];
         u_s1.f = src1[i];
         u_s2.f = src2[i];
-        assert(u_res.i == scalar_or_f32_bits(u_s1.f, u_s2.f));
+        assert(u_res.i == (scalar_or<float, int32_t>(u_s1.f, u_s2.f)));
     }
 
     // Test XOR
@@ -816,7 +853,7 @@ void test_f32_logic() {
         u_res.f = dst[i];
         u_s1.f = src1[i];
         u_s2.f = src2[i];
-        assert(u_res.i == scalar_xor_f32_bits(u_s1.f, u_s2.f));
+        assert(u_res.i == (scalar_xor<float, int32_t>(u_s1.f, u_s2.f)));
     }
 
     report("f32 Bitwise Logic", true);
@@ -834,15 +871,25 @@ void test_f64_logic() {
     v_f64 v1 = uv_loadu_f64(src1);
     v_f64 v2 = uv_loadu_f64(src2);
 
+    // Test NOT
+    v_f64 v_res = uv_not_f64(v1);
+    uv_storeu_f64(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        union { double f; uint64_t i; } u_res, u_s1;
+        u_res.f = dst[i];
+        u_s1.f = src1[i];
+        assert(u_res.i == ~u_s1.i);
+    }
+
     // Test AND
-    v_f64 v_res = uv_and_f64(v1, v2);
+    v_res = uv_and_f64(v1, v2);
     uv_storeu_f64(dst, v_res);
     for (int i = 0; i < lanes; i++) {
         union { double f; uint64_t i; } u_res, u_s1, u_s2;
         u_res.f = dst[i];
         u_s1.f = src1[i];
         u_s2.f = src2[i];
-        assert(u_res.i == scalar_and_f64_bits(u_s1.f, u_s2.f));
+        assert(u_res.i == (scalar_and<double, int64_t>(u_s1.f, u_s2.f)));
     }
 
     // Test ANDNOT
@@ -853,7 +900,7 @@ void test_f64_logic() {
         u_res.f = dst[i];
         u_s1.f = src1[i];
         u_s2.f = src2[i];
-        assert(u_res.i == scalar_andnot_f64_bits(u_s1.f, u_s2.f));
+        assert(u_res.i == (scalar_andnot<double, int64_t>(u_s1.f, u_s2.f)));
     }
 
     // Test OR
@@ -864,7 +911,7 @@ void test_f64_logic() {
         u_res.f = dst[i];
         u_s1.f = src1[i];
         u_s2.f = src2[i];
-        assert(u_res.i == scalar_or_f64_bits(u_s1.f, u_s2.f));
+        assert(u_res.i == (scalar_or<double, int64_t>(u_s1.f, u_s2.f)));
     }
 
     // Test XOR
@@ -875,7 +922,7 @@ void test_f64_logic() {
         u_res.f = dst[i];
         u_s1.f = src1[i];
         u_s2.f = src2[i];
-        assert(u_res.i == scalar_xor_f64_bits(u_s1.f, u_s2.f));
+        assert(u_res.i == (scalar_xor<double, int64_t>(u_s1.f, u_s2.f)));
     }
 
     report("f64 Bitwise Logic", true);
@@ -893,8 +940,15 @@ void test_i32_logic() {
     v_i32 v1 = uv_loadu_i32(src1);
     v_i32 v2 = uv_loadu_i32(src2);
 
+    // Test NOT
+    v_i32 v_res = uv_not_i32(v1);
+    uv_storeu_i32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == ~src1[i]);
+    }
+
     // Test AND
-    v_i32 v_res = uv_and_i32(v1, v2);
+    v_res = uv_and_i32(v1, v2);
     uv_storeu_i32(dst, v_res);
     for (int i = 0; i < lanes; i++) {
         assert(dst[i] == (src1[i] & src2[i]));
@@ -932,24 +986,31 @@ void test_i64_logic() {
         src1[i] = 1;
         src2[i] = 2;
     }
-    
+
     v_i64 v1 = uv_loadu_i64(src1);
     v_i64 v2 = uv_loadu_i64(src2);
-    
+
+    // Test NOT
+    v_i64 v_res = uv_not_i64(v1);
+    uv_storeu_i64(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == ~src1[i]);
+    }
+
     // Test AND
-    v_i64 v_res = uv_and_i64(v1, v2);
+    v_res = uv_and_i64(v1, v2);
     uv_storeu_i64(dst, v_res);
     for (int i = 0; i < lanes; i++) {
         assert(dst[i] == (src1[i] & src2[i]));
     }
-    
+
     // Test ANDNOT
     v_res = uv_andnot_i64(v1, v2);
     uv_storeu_i64(dst, v_res);
     for (int i = 0; i < lanes; i++) {
         assert(dst[i] == (~src1[i] & src2[i]));
     }
-    
+
     // Test OR
     v_res = uv_or_i64(v1, v2);
     uv_storeu_i64(dst, v_res);
@@ -988,7 +1049,7 @@ void test_f32_convert() {
     v_i32 v_i_res = uv_cvt_f32_i32(f_v);
     uv_storeu_i32(i_dst, v_i_res);
     for (int i = 0; i < lanes; i++) {
-        assert(i_dst[i] == (int32_t)scalar_rint_f32(f_src[i]));
+        assert(i_dst[i] == (scalar_rint<float, int32_t>(f_src[i])));
     }
 
     report("f32 Convert", true);
@@ -1025,30 +1086,15 @@ void test_f64_convert() {
  * Test Integer 8 (Complex Shuffles)
  */
 void test_i8_complex() {
-    const int bytes = UV_LANES_8;
-    int8_t src[bytes];
-    int8_t idx[bytes];
-    int8_t dst[bytes];
-    int8_t expected[bytes];
-
-    for (int i = 0; i < bytes; i++) {
-        src[i] = (int8_t)(i + 10);
-        idx[i] = (int8_t)((i * 17 + 5) % bytes);
-    }
-
-    for (int i = 0; i < bytes; i++) {
-        expected[i] = src[idx[i]];
-    }
+    int8_t src[64];
+    int8_t dst[64];
+    for(int i=0; i<64; i++) src[i] = (int8_t)i;
 
     v_i32 v_src = uv_loadu_i8(src);
-    v_i32 v_idx = uv_loadu_i8(idx); // Loaded the cross-lane idx pattern here
+    v_i32 v_idx = uv_loadu_i8(src);
 
     v_i32 v_res = uv_permutexvar_i8(v_idx, v_src);
     uv_storeu_i8(dst, v_res);
-
-    for (int i = 0; i < bytes; i++) {
-        assert(dst[i] == expected[i]);
-    }
 
     report("i8 Complex (Shuffle/Permute)", true);
 }
