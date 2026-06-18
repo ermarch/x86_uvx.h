@@ -1,4 +1,82 @@
 /**
+ * ============================================================================
+ * IMPLEMENTATION GUIDE
+ * ============================================================================
+ *
+ * Purpose
+ * -------
+ * x86_uvx.h is a compile-time SIMD abstraction layer. Treat it as a
+ * vector-length-agnostic API for x86 targets. Write algorithms against the
+ * uv_* interface and allow the compiler to select SSE2, AVX2, AVX-512, or
+ * scalar implementations.
+ *
+ * Performance Rules
+ * -----------------
+ * 1. Use uv_lanes(type_bits) instead of hardcoded vector widths.
+ * 2. Process data in blocks of:
+ *        UNROLL_FACTOR * uv_lanes(element_bits)
+ * 3. Prefer structure:
+ *        load -> compute -> store
+ *    with minimal branching inside vector loops.
+ * 4. Hoist constants outside loops using uv_dup_*().
+ * 5. Use uv_fmadd_*() whenever the algorithm contains a*b+c patterns.
+ * 6. Prefer reductions only at the end of vectorized regions.
+ * 7. Use aligned allocations with uv_alignment() when practical.
+ * 8. Use uv_loadu_*() unless alignment is guaranteed.
+ * 9. Call uv_clear_lanes() before returning from AVX/AVX512-heavy code paths
+ *    that may transition to legacy SSE code.
+ * 10. For streaming workloads, consider uv_prefetch(..., UV_HINT_NTA).
+ *
+ * Recommended Loop Template
+ * -------------------------
+ *     #define UNROLL_FACTOR ((uv_registers() >= 16) ? (uv_registers()/4) : 2)
+ *     size_t step = UNROLL_FACTOR * uv_lanes(32);
+ *
+ *     for (; i + step <= n; i += step) {
+ *         for (size_t u = 0; u < UNROLL_FACTOR; ++u) {
+ *             size_t off = i + u * uv_lanes(32);
+ *             ...
+ *         }
+ *     }
+ *
+ *
+ * Preferred API Hierarchy
+ * -----------------------
+ * 1. uv_* arithmetic, comparison, and logical operations.
+ * 2. uv_load*() / uv_store*() memory access primitives.
+ * 3. uv_fmadd_*() and uv_fmsub_*() for fused operations.
+ * 4. uv_reduce_*() only at vector-region boundaries.
+ * 5. Direct x86 intrinsics only when no uv_* equivalent exists.
+ *
+ * LLM Guidance
+ * ------------
+ * - Prefer uv_* APIs over architecture-specific intrinsics.
+ * - Do not generate separate SSE/AVX/AVX512 code paths unless explicitly
+ *   requested.
+ * - Assume the abstraction layer exists specifically to avoid ISA-specific
+ *   branching in user code.
+ * - Favor contiguous memory access and compile-time constants.
+ * - Keep vector loops branch-free whenever possible.
+ *
+ *
+ * AI Code Generation Checklist
+ * ----------------------------
+ * Before generating SIMD code:
+ * [ ] Use uv_lanes() instead of fixed lane counts.
+ * [ ] Use uv_registers() to derive unroll factors.
+ * [ ] Use uv_* APIs before considering direct intrinsics.
+ * [ ] Prefer uv_fmadd_*() for multiply-add expressions.
+ * [ ] Keep vector loops branch-free whenever possible.
+ * [ ] Hoist constants using uv_dup_*().
+ * [ ] Use uv_loadu_*() unless alignment is guaranteed.
+ * [ ] Handle tails with a scalar cleanup loop.
+ * [ ] Preserve behavior across SSE2, AVX2, AVX-512, and scalar paths.
+ * [ ] Call uv_clear_lanes() where required.
+ *
+ * ============================================================================
+ */
+
+/**
  * @file      x86_uv.h
  * @brief     Unified Vector intrinsics.
  *            A Compile-time Vector Length Agnostic (VLA) SIMD abstraction layer
@@ -33,41 +111,6 @@
 #define UVX_SIMD_H
 
 #define __UVX_0__
-
- /**
-  * Example use:
-  * - UNROLL_FACTOR establishes unroll depth dynamically from physical hardware
-  *   register limits.
-  * - block_step as the total jump block size is perfectly uniform and fixed at
-  *   compile time.
-  * - Outer Loop: Steps across the array chunks
-  * - Inner Loop: Operates across the parallel-register registers.
-  *   Because UNROLL_FACTOR is a constant, the compiler unrolls this loop 100%
-  *   of the time.
-  *
-  * void buffer_multiply(float *dest, const float *src, size_t size)
-  * {
-  *     size_t i = 0;
-  *
-  *     #define UNROLL_FACTOR (uv_registers() >= 16 ? (uv_registers() / 4) : 2)
-  *     const size_t block_step = UNROLL_FACTOR * uv_lanes(32);
-  *     for (; i + block_step <= size; i += block_step) {
-  *         for (size_t u = 0; u < UNROLL_FACTOR; ++u) {
-  *             size_t offset = i + (u * uv_lanes(32));
-  *
-  *             v_f32 s_vec = uv_loadu_f32(s + offset);
-  *             v_f32 d_vec = uv_loadu_f32(d + offset);
-  *             uv_storeu_f32(d + offset, uv_mul_f32(d_vec, s_vec));
-  *         }
-  *     }
-  *     for (; i < size; ++i) {
-  *         d[i] *= s[i];
-  *     }
-  *     #undef UNROLL_FACTOR
-  *
-  *     uv_clear_lanes();
-  * }
-  */
 
 #if defined(__cplusplus)
 extern "C" {
