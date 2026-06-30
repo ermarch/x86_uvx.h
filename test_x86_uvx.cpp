@@ -174,6 +174,13 @@ void test_f32_arithmetic() {
         assert(fabsf(dst[i] - (src1[i] / src2[i])) < TEST_epsilon);
     }
 
+    // Test Sqrt
+    v_res = uv_sqrt_f32(v_src1);
+    uv_storeu_f32(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == sqrtf(src1[i]));
+    }
+
     // Test Abs
     v_res = uv_abs_f32(v_src1);
     uv_storeu_f32(dst, v_res);
@@ -231,6 +238,13 @@ void test_f64_arithmetic() {
     uv_storeu_f64(dst, v_res);
     for (int i = 0; i < lanes; i++) {
         assert(fabsf(dst[i] - (src1[i] / src2[i])) < TEST_epsilon);
+    }
+
+    // Test Sqrt
+    v_res = uv_sqrt_f64(v_src1);
+    uv_storeu_f64(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == sqrt(src1[i]));
     }
 
     // Test Abs

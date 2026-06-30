@@ -1,4 +1,35 @@
 /**
+ * @file      x86_uv.h
+ * @brief     Unified Vector intrinsics.
+ *            A Compile-time Vector Length Agnostic (VLA) SIMD abstraction layer
+ *            for x86.
+ *
+ * @details   This single-header library implements a high-performance, unified
+ *            subset of data-parallel instructions inspired by the design
+ *            philosophy of ARM SVE2 and RISC-V Vector (RVV).
+ *
+ *            Instead of hardcoding register widths, algorithms use abstract
+ *            vector types and scale automatically via the compile-time constant
+ *            `UV_LANES_32`. The implementation resolves completely at compile
+ *            time via macro inlining with zero runtime abstraction overhead.
+ *
+ * @note      Supported Target Levels:
+ *            - LEVEL 3: AVX-512 (512-bit registers, UV_LANES_32 = 16 for f32)
+ *            - LEVEL 2: AVX2    (256-bit registers, UV_LANES_32 = 8  for f32)
+ *            - LEVEL 1: SSE2    (128-bit registers, UV_LANES_32 = 4  for f32)
+ *            - LEVEL 0:         (Scalar Fallback,   UV_LANES_32 = 1  for f32)
+ *
+ * @attention Requirements:
+ *            Must be compiled with minimum `-msse2` flag. Target upscaling is
+ *            controlled completely by your compiler architecture flags
+ *            (e.g., `-msse2`, `-mavx2`, `-mavx512f`).
+ *
+ * @author    Erik Hofman <erik@ehofman.com>
+ * @date      May 2026
+ * @license   MIT License
+ */
+
+/**
  * ============================================================================
  * IMPLEMENTATION GUIDE
  * ============================================================================
@@ -75,38 +106,6 @@
  *
  * ============================================================================
  */
-
-/**
- * @file      x86_uv.h
- * @brief     Unified Vector intrinsics.
- *            A Compile-time Vector Length Agnostic (VLA) SIMD abstraction layer
- *            for x86.
- *
- * @details   This single-header library implements a high-performance, unified
- *            subset of data-parallel instructions inspired by the design
- *            philosophy of ARM SVE2 and RISC-V Vector (RVV).
- *
- *            Instead of hardcoding register widths, algorithms use abstract
- *            vector types and scale automatically via the compile-time constant
- *            `UV_LANES_32`. The implementation resolves completely at compile
- *            time via macro inlining with zero runtime abstraction overhead.
- *
- * @note      Supported Target Levels:
- *            - LEVEL 3: AVX-512 (512-bit registers, UV_LANES_32 = 16 for f32)
- *            - LEVEL 2: AVX2    (256-bit registers, UV_LANES_32 = 8  for f32)
- *            - LEVEL 1: SSE2    (128-bit registers, UV_LANES_32 = 4  for f32)
- *            - LEVEL 0:         (Scalar Fallback,   UV_LANES_32 = 1  for f32)
- *
- * @attention Requirements:
- *            Must be compiled with minimum `-msse2` flag. Target upscaling is
- *            controlled completely by your compiler architecture flags
- *            (e.g., `-msse2`, `-mavx2`, `-mavx512f`).
- *
- * @author    Erik Hofman <erik@ehofman.com>
- * @date      May 2026
- * @license   MIT License
- */
-
 #ifndef UVX_SIMD_H
 #define UVX_SIMD_H
 
@@ -290,7 +289,9 @@ extern "C" {
   #define uv_div_f32(a, b)       _mm512_div_ps(a, b)
   #define uv_max_f32(a, b)       _mm512_max_ps(a, b)
   #define uv_min_f32(a, b)       _mm512_min_ps(a, b)
-  #define uv_abs_f32(a)          _mm512_abs_ps(a)
+
+  #define uv_sqrt_f32(v)         _mm512_sqrt_ps(v)
+  #define uv_abs_f32(v)          _mm512_abs_ps(v)
   static inline v_f32 uv_neg_f32(v_f32 v) {
     __m512i mask = _mm512_set1_epi32(0x80000000);
     return _mm512_castsi512_ps(_mm512_xor_si512(_mm512_castps_si512(v), mask));
@@ -355,6 +356,8 @@ extern "C" {
   #define uv_div_f32(a, b)       _mm256_div_ps(a, b)
   #define uv_max_f32(a, b)       _mm256_max_ps(a, b)
   #define uv_min_f32(a, b)       _mm256_min_ps(a, b)
+
+  #define uv_sqrt_f32(v)         _mm256_sqrt_ps(v)
   static inline v_f32 uv_abs_f32(v_f32 v) {
     const __m256 sign_mask = _mm256_set1_ps(-0.0f);
     return _mm256_andnot_ps(sign_mask, v);
@@ -439,6 +442,8 @@ extern "C" {
   #define uv_div_f32(a, b)       _mm_div_ps(a, b)
   #define uv_max_f32(a, b)       _mm_max_ps(a, b)
   #define uv_min_f32(a, b)       _mm_min_ps(a, b)
+
+  #define uv_sqrt_f32(v)         _mm_sqrt_ps(v)
   static inline v_f32 uv_abs_f32(v_f32 v) {
     const __m128 sign_mask = _mm_set1_ps(-0.0f);
     return _mm_andnot_ps(sign_mask, v);
@@ -515,7 +520,9 @@ extern "C" {
   #define uv_div_f32(a, b)       ((a) / (b))
   #define uv_max_f32(a, b)       ((a) > (b) ? (a) : (b))
   #define uv_min_f32(a, b)       ((a) < (b) ? (a) : (b))
-  #define uv_abs_f32(v)          (fabsf(v))
+
+  #define uv_sqrt_f32(v)         sqrtf(v)
+  #define uv_abs_f32(v)          fabsf(v)
   #define uv_neg_f32(v)          (-(v))
 
   static inline v_f32 uv_not_f32(v_f32 v) {
@@ -655,6 +662,8 @@ extern "C" {
   #define uv_div_f64(a, b)       _mm512_div_pd(a, b)
   #define uv_max_f64(a, b)       _mm512_max_pd(a, b)
   #define uv_min_f64(a, b)       _mm512_min_pd(a, b)
+
+  #define uv_sqrt_f64(v)         _mm512_sqrt_pd(v)
   #define uv_abs_f64(v)          _mm512_abs_pd(v)
   static inline v_f64 uv_neg_f64(v_f64 v) {
     __m512i mask = _mm512_set1_epi64(0x8000000000000000ULL);
@@ -710,6 +719,8 @@ extern "C" {
   #define uv_div_f64(a, b)       _mm256_div_pd(a, b)
   #define uv_max_f64(a, b)       _mm256_max_pd(a, b)
   #define uv_min_f64(a, b)       _mm256_min_pd(a, b)
+
+  #define uv_sqrt_f64(v)         _mm256_sqrt_pd(v)
   static inline v_f64 uv_abs_f64(__m256d v) {
     __m256d sign_mask = _mm256_set1_pd(-0.0);
     return _mm256_andnot_pd(sign_mask, v);
@@ -756,6 +767,8 @@ extern "C" {
   #define uv_div_f64(a, b)       _mm_div_pd(a, b)
   #define uv_max_f64(a, b)       _mm_max_pd(a, b)
   #define uv_min_f64(a, b)       _mm_min_pd(a, b)
+
+  #define uv_sqrt_f64(v)         _mm_sqrt_pd(v)
   static inline v_f64 uv_abs_f64(v_f64 v) {
     const __m128d sign_mask = _mm_set1_pd(-0.0f);
     return _mm_andnot_pd(sign_mask, v);
@@ -821,7 +834,9 @@ extern "C" {
   #define uv_div_f64(a, b)       ((a) / (b))
   #define uv_max_f64(a, b)       ((a) > (b) ? (a) : (b))
   #define uv_min_f64(a, b)       ((a) < (b) ? (a) : (b))
-  #define uv_abs_f64(v)          (fabsf(v))
+
+  #define uv_sqrt_f64(v)         sqrt(v)
+  #define uv_abs_f64(v)          fabsf(v)
   #define uv_neg_f64(v)          (-(v))
 
   static inline v_f64 uv_not_f64(v_f64 v) {
