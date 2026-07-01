@@ -308,7 +308,7 @@ extern "C" {
     #define uv_xor_f32(a, b)     _mm512_xor_ps(a, b)
   #else
     static inline v_f32 uv_not_f32(v_f32 v) {
-      return _mm512_castsi512_ps(_mm512_xor_si512(_mm512_castps_si512(v), _mm512_castps_si512(_mm512_set1_ps(-1.0f))));
+      return _mm512_castsi512_ps(_mm512_xor_si512(_mm512_castps_si512(v), _mm512_set1_epi32(-1)));
     }
     static inline v_f32 uv_and_f32(v_f32 a, v_f32 b) {
       return _mm512_castsi512_ps(_mm512_and_si512(_mm512_castps_si512(a), _mm512_castps_si512(b)));
@@ -324,6 +324,10 @@ extern "C" {
     }
   #endif
 
+  static inline int uv_testz_f32(v_f32 v, v_f32 m) {
+    __mmask16 mask = _mm512_cmpneq_ps_mask(v, m);
+    return mask == 0;
+  }
   #define uv_cmpeq_f32(a, b)     _mm512_cmp_ps_mask(a, b, _CMP_EQ_OS)
   #define uv_cmplt_f32(a, b)     _mm512_cmp_ps_mask(a, b, _CMP_LT_OS)
   #define uv_cmple_f32(a, b)     _mm512_cmp_ps_mask(a, b, _CMP_LE_OS)
@@ -375,6 +379,7 @@ extern "C" {
   #define uv_or_f32(a, b)        _mm256_or_ps(a, b)
   #define uv_xor_f32(a, b)       _mm256_xor_ps(a, b)
 
+  #define uv_testz_f32(v, m)     _mm256_testz_si256(_mm256_castps_si256(v), _mm256_castps_si256(m))
   #define uv_cmpeq_f32(a, b)     _mm256_cmp_ps(a, b, _CMP_EQ_OS)
   #define uv_cmplt_f32(a, b)     _mm256_cmp_ps(a, b, _CMP_LT_OS)
   #define uv_cmple_f32(a, b)     _mm256_cmp_ps(a, b, _CMP_LE_OS)
@@ -461,6 +466,14 @@ extern "C" {
   #define uv_or_f32(a, b)        _mm_or_ps(a, b)
   #define uv_xor_f32(a, b)       _mm_xor_ps(a, b)
 
+  #if defined(__SSE4_1__)
+    #define uv_testz_f32(v, m)   _mm_testz_si128(_mm_castps_si128(v), _mm_castps_si128(m))
+  #else
+    static inline int uv_testz_f32(v_f32 v, v_f32 m) {
+      __m128i cmp = _mm_cmpeq_epi8(_mm_castps_si128(v), _mm_castps_si128(m));
+      return _mm_movemask_epi8(cmp) == 0xFFFF;
+    }
+  #endif
   #define uv_cmpeq_f32(a, b)     _mm_cmpeq_ps(a, b)
   #define uv_cmplt_f32(a, b)     _mm_cmplt_ps(a, b)
   #define uv_cmple_f32(a, b)     _mm_cmple_ps(a, b)
@@ -573,6 +586,7 @@ extern "C" {
     return res;
   }
 
+  #define uv_testz_f32(v, m)     (((int32_t)(v) & (int32_t)(m)) == 0)
   #define uv_cmpeq_f32(a, b)     ((a) == (b))
   #define uv_cmplt_f32(a, b)     ((a) < (b))
   #define uv_cmple_f32(a, b)     ((a) <= (b))
@@ -694,6 +708,10 @@ extern "C" {
     }
   #endif
 
+  static inline int uv_testz_f64(v_f64 v, v_f64 m) {
+    __mmask16 mask = _mm512_cmpneq_pd_mask(v, m);
+    return mask == 0;
+  }
   #define uv_cmpeq_f64(a, b)     _mm512_cmp_pd_mask(a, b, _CMP_EQ_OS)
   #define uv_cmplt_f64(a, b)     _mm512_cmp_pd_mask(a, b, _CMP_LT_OS)
   #define uv_cmple_f64(a, b)     _mm512_cmp_pd_mask(a, b, _CMP_LE_OS)
@@ -738,6 +756,7 @@ extern "C" {
   #define uv_or_f64(a, b)        _mm256_or_pd(a, b)
   #define uv_xor_f64(a, b)       _mm256_xor_pd(a, b)
 
+  #define uv_testz_f64(v, m)     _mm256_testz_si256(_mm256_castpd_si256(v), _mm256_castpd_si256(m))
   #define uv_cmpeq_f64(a, b)     _mm256_cmp_pd(a, b, _CMP_EQ_OS)
   #define uv_cmplt_f64(a, b)     _mm256_cmp_pd(a, b, _CMP_LT_OS)
   #define uv_cmple_f64(a, b)     _mm256_cmp_pd(a, b, _CMP_LE_OS)
@@ -786,6 +805,14 @@ extern "C" {
   #define uv_or_f64(a, b)        _mm_or_pd(a, b)
   #define uv_xor_f64(a, b)       _mm_xor_pd(a, b)
 
+  #if defined(__SSE4_1__)
+    #define uv_testz_f64(v, m)   _mm_testz_si128(_mm_castpd_si128(v), _mm_castpd_si128(m))
+  #else
+  static inline int uv_testz_f64(v_f64 v, v_f64 m) {
+      __m128i cmp = _mm_cmpeq_epi8(_mm_castpd_si128(v), _mm_castpd_si128(m));
+      return _mm_movemask_epi8(cmp) == 0xFFFF;
+    }
+  #endif
   static inline v_f64 uv_cmpeq_f64(v_f64 a, v_f64 b) {
       return _mm_cmpeq_pd(a, b);
   }
@@ -887,6 +914,7 @@ extern "C" {
     return res;
   }
 
+  #define uv_testz_f64(v, m)     (((int64_t)(v) & (int64_t)(m)) == 0ULL)
   #define uv_cmpeq_f64(a, b)     ((a) == (b))
   #define uv_cmplt_f64(a, b)     ((a) < (b))
   #define uv_cmple_f64(a, b)     ((a) <= (b))
@@ -944,6 +972,10 @@ extern "C" {
   #define uv_or_i64(a, b)        _mm512_or_si512(a, b)
   #define uv_xor_i64(a, b)       _mm512_xor_si512(a, b)
 
+  static inline int uv_testz_i64(v_i64 v, v_i64 m) {
+    __mmask16 mask = _mm512_test_epi64_mask(v, m);
+    return mask == 0;
+  }
   #define uv_cmpeq_i64(a, b)     _mm512_cmp_epi64_mask(a, b, _MM_CMPINT_EQ)
   #define uv_cmplt_i64(a, b)     _mm512_cmp_epi64_mask(a, b, _MM_CMPINT_LT)
   #define uv_cmple_i64(a, b)     _mm512_cmp_epi64_mask(a, b, _MM_CMPINT_LE)
@@ -1005,6 +1037,7 @@ extern "C" {
   #define uv_or_i64(a, b)        _mm256_or_si256(a, b)
   #define uv_xor_i64(a, b)       _mm256_xor_si256(a, b)
 
+  #define uv_testz_i64(v, m)     _mm256_testz_si256(v, m)
   #define uv_cmpeq_i64(a, b)     _mm256_cmpeq_epi64(a, b)
   #define uv_cmpgt_i64(a, b)     _mm256_cmpgt_epi64(a, b)
   #define uv_cmplt_i64(a, b)     _mm256_cmpgt_epi64(b, a)
@@ -1098,6 +1131,15 @@ extern "C" {
   #define uv_setzero_i64()       _mm_setzero_si128()
   #define uv_dup_i64(v)          _mm_set1_epi64x(v)
 
+  #if defined(__SSE4_1__)
+    #define uv_testz_i64(v, a)   _mm_testz_si128(v, m)
+  #else
+    static inline int uv_testz_i64(v_i64 v, v_i64 m) {
+      __m128i r = _mm_and_si128(v, m);
+      __m128i cmp = _mm_cmpeq_epi8(r, _mm_setzero_si128());
+      return _mm_movemask_epi8(cmp) == 0xFFFF;
+    }
+  #endif
   // uv_cmpgt_i64 is needed by uv_max_i64 and uv_min_i64
   #if defined(__SSE4_1__)
     #define uv_cmpeq_i64(a, b) _mm_cmpeq_epi64(a, b)
@@ -1244,6 +1286,7 @@ extern "C" {
   #define uv_or_i64(a, b)        ((a) | (b))
   #define uv_xor_i64(a, b)       ((a) ^ (b))
 
+  #define uv_testz_i64(v, m)     (((v) & (m)) == 0ULL)
   #define uv_cmpeq_i64(a, b)     ((a) == (b))
   #define uv_cmplt_i64(a, b)     ((a) < (b))
   #define uv_cmple_i64(a, b)     ((a) <= (b))
@@ -1293,6 +1336,10 @@ extern "C" {
   #define uv_or_i32(a, b)        _mm512_or_si512(a, b)
   #define uv_xor_i32(a, b)       _mm512_xor_si512(a, b)
 
+  static inline int uv_testz_i32(v_i32 v, v_i32 m) {
+    __mmask16 mask = _mm512_test_epi64_mask(v, m);
+    return mask == 0;
+  }
   #define uv_cmpeq_i32(a, b)     _mm512_cmp_epi32_mask(a, b, _MM_CMPINT_EQ)
   #define uv_cmplt_i32(a, b)     _mm512_cmp_epi32_mask(a, b, _MM_CMPINT_LT)
   #define uv_cmple_i32(a, b)     _mm512_cmp_epi32_mask(a, b, _MM_CMPINT_LE)
@@ -1386,15 +1433,10 @@ extern "C" {
   #define uv_or_i32(a, b)        _mm256_or_si256(a, b)
   #define uv_xor_i32(a, b)       _mm256_xor_si256(a, b)
 
-  static inline v_i32 uv_cmpeq_i32(v_i32 a, v_i32 b) {
-      return _mm256_cmpeq_epi32(a, b);
-  }
-  static inline v_i32 uv_cmpgt_i32(v_i32 a, v_i32 b) {
-      return _mm256_cmpgt_epi32(a, b);
-  }
-  static inline v_i32 uv_cmplt_i32(v_i32 a, v_i32 b) {
-      return _mm256_cmpgt_epi32(b, a);
-  }
+  #define uv_testz_i32(v, m)     _mm256_testz_si256(v, m)
+  #define uv_cmpeq_i32(a, b)     _mm256_cmpeq_epi32(a, b)
+  #define uv_cmpgt_i32(a, b)     _mm256_cmpgt_epi32(a, b)
+  #define uv_cmplt_i32(a, b)     _mm256_cmpgt_epi32(b, a)
   static inline v_i32 uv_cmpne_i32(v_i32 a, v_i32 b) {
       v_i32 eq = _mm256_cmpeq_epi32(a, b);
       return _mm256_xor_si256(eq, _mm256_set1_epi32(-1.0));
@@ -1407,12 +1449,8 @@ extern "C" {
       v_i32 gt = _mm256_cmpgt_epi32(b, a);
       return _mm256_xor_si256(gt, _mm256_set1_epi32(-1.0));
   }
-  static inline v_i32 uv_cmpnlt_i32(v_i32 a, v_i32 b) {
-      return uv_cmpge_i32(a, b);
-  }
-  static inline v_i32 uv_cmpnle_i32(v_i32 a, v_i32 b) {
-      return _mm256_cmpgt_epi32(a, b);
-  }
+  #define uv_cmpnlt_i32(a, b)    uv_cmpge_i32(a, b)
+  #define uv_cmpnle_i32(a, b)    _mm256_cmpgt_epi32(a, b)
 
   #if defined(__AVX10__)
     #define uv_select_i32(m, t, f) _mm256_mask_blend_epi32(m, f, t)
@@ -1499,15 +1537,18 @@ extern "C" {
   #define uv_or_i32(a, b)        _mm_or_si128(a, b)
   #define uv_xor_i32(a, b)       _mm_xor_si128(a, b)
 
-  static inline v_i32 uv_cmpeq_i32(v_i32 a, v_i32 b) {
-      return _mm_cmpeq_epi32(a, b);
-  }
-  static inline v_i32 uv_cmpgt_i32(v_i32 a, v_i32 b) {
-      return _mm_cmpgt_epi32(a, b);
-  }
-  static inline v_i32 uv_cmplt_i32(v_i32 a, v_i32 b) {
-      return _mm_cmpgt_epi32(b, a);
-  }
+  #if defined(__SSE4_1__)
+    #define uv_testz_i32(v, m)   _mm_testz_si128(v, m)
+  #else
+  static inline int uv_testz_i32(v_i32 v, v_i32 m) {
+      __m128i r = _mm_and_si128(v, m);
+      __m128i cmp = _mm_cmpeq_epi8(r, _mm_setzero_si128());
+      return _mm_movemask_epi8(cmp) == 0xFFFF;
+    }
+  #endif
+  #define uv_cmpeq_i32(a, b)     _mm_cmpeq_epi32(a, b)
+  #define uv_cmpgt_i32(a, b)     _mm_cmpgt_epi32(a, b)
+  #define uv_cmplt_i32(a, b)     _mm_cmpgt_epi32(b, a)
   static inline v_i32 uv_cmpne_i32(v_i32 a, v_i32 b) {
       v_i32 eq = _mm_cmpeq_epi32(a, b);
       return _mm_xor_si128(eq, _mm_set1_epi32(-1));
@@ -1520,12 +1561,8 @@ extern "C" {
       v_i32 gt = _mm_cmpgt_epi32(b, a);
       return _mm_xor_si128(gt, _mm_set1_epi32(-1));
   }
-  static inline v_i32 uv_cmpnlt_i32(v_i32 a, v_i32 b) {
-      return uv_cmpge_i32(a, b);
-  }
-  static inline v_i32 uv_cmpnle_i32(v_i32 a, v_i32 b) {
-      return _mm_cmpgt_epi32(a, b);
-  }
+  #define uv_cmpnlt_i32(a, b)    uv_cmpge_i32(a, b)
+  #define uv_cmpnle_i32(a, b)    _mm_cmpgt_epi32(a, b)
 
   #if defined(__SSE4_1__)
     #define uv_select_i32(m, t, f) _mm_blendv_epi8(f, t, m)
@@ -1578,6 +1615,7 @@ extern "C" {
   #define uv_or_i32(a, b)        ((a) | (b))
   #define uv_xor_i32(a, b)       ((a) ^ (b))
 
+  #define uv_testz_i32(v, m)     (((v) & (m)) == 0)
   #define uv_cmpeq_i32(a, b)     ((a) == (b))
   #define uv_cmplt_i32(a, b)     ((a) < (b))
   #define uv_cmple_i32(a, b)     ((a) <= (b))

@@ -24,6 +24,7 @@ template <> struct uvx_traits<float> {
     using mask_type = v_mask;
     static inline v_f32 dup(float v) { return uv_dup_f32(v); }
     static inline v_f32 load(const float* p) { return uv_loadu_f32(p); }
+    static inline int testz(v_f32 v, v_f32 m) { return uv_testz_f32(v, m); }
     static inline v_mask cmpeq(v_f32 a, v_f32 b) { return uv_cmpeq_f32(a, b); }
     static inline v_mask cmplt(v_f32 a, v_f32 b) { return uv_cmplt_f32(a, b); }
     static inline v_mask cmple(v_f32 a, v_f32 b) { return uv_cmple_f32(a, b); }
@@ -42,6 +43,7 @@ template <> struct uvx_traits<int32_t> {
     using mask_type = v_mask_i8;
     static inline v_i32 dup(float v) { return uv_dup_i32(v); }
     static inline v_i32 load(const int32_t* p) { return uv_loadu_i32(p); }
+    static inline int testz(v_i32 v, v_i32 m) { return uv_testz_i32(v, m); }
     static inline v_mask_i8 cmpeq(v_i32 a, v_i32 b) { return uv_cmpeq_i32(a, b); }
     static inline v_mask_i8 cmplt(v_i32 a, v_i32 b) { return uv_cmplt_i32(a, b); }
     static inline v_mask_i8 cmple(v_i32 a, v_i32 b) { return uv_cmple_i32(a, b); }
@@ -60,6 +62,7 @@ template <> struct uvx_traits<double> {
     using mask_type = v_mask_f64;
     static inline v_f64 dup(double v) { return uv_dup_f64(v); }
     static inline v_f64 load(const double* p) { return uv_loadu_f64(p); }
+    static inline int testz(v_f64 v, v_f64 m) { return uv_testz_f64(v, m); }
     static inline v_mask_f64 cmpeq(v_f64 a, v_f64 b) { return uv_cmpeq_f64(a, b); }
     static inline v_mask_f64 cmplt(v_f64 a, v_f64 b) { return uv_cmplt_f64(a, b); }
     static inline v_mask_f64 cmple(v_f64 a, v_f64 b) { return uv_cmple_f64(a, b); }
@@ -78,6 +81,7 @@ template <> struct uvx_traits<int64_t> {
     using mask_type = v_mask_i8;
     static inline v_i64 dup(float v) { return uv_dup_i64(v); }
     static inline v_i64 load(const int64_t* p) { return uv_loadu_i64(p); }
+    static inline int testz(v_i64 v, v_i64 m) { return uv_testz_i64(v, m); }
     static inline v_mask_i8 cmpeq(v_i64 a, v_i64 b) { return uv_cmpeq_i64(a, b); }
     static inline v_mask_i8 cmplt(v_i64 a, v_i64 b) { return uv_cmplt_i64(a, b); }
     static inline v_mask_i8 cmple(v_i64 a, v_i64 b) { return uv_cmple_i64(a, b); }
@@ -618,6 +622,12 @@ void test_i32_comparison() {
     }
 
     // Test Greater-than and Select
+    int32_t z_src[uv_max_lanes(32)] = {
+               0,          0,         0,         0,
+               0,          0,         0,         0,
+               0,          0,         0,         0,
+               0,          0,         0,         0
+    };
     int32_t a_src[uv_max_lanes(32)] = {
                1,         -1,         0,         5,
                1, -INT32_MAX, INT32_MAX,         1,
@@ -636,8 +646,24 @@ void test_i32_comparison() {
     const v_i32 v_val_true = uvx_traits<int32_t>::dup(1);
     const v_i32 v_val_false = uvx_traits<int32_t>::dup(0);
 
+    v_i32 z = uvx_traits<int32_t>::load(z_src);
     v_i32 a = uvx_traits<int32_t>::load(a_src);
     v_i32 b = uvx_traits<int32_t>::load(b_src);
+
+    // Test Zero
+    int zero = (uvx_traits<int32_t>::testz(z, z) == 1);
+    res.i[0] = 0;
+    for (int r = 0; r < lanes; r++) {
+        res.i[0] |= z_src[r];
+    }
+    assert(zero == (res.i[0] == 0));
+
+    zero = (uvx_traits<int32_t>::testz(a, a) == 1);
+    res.i[0] = 0;
+    for (int r = 0; r < lanes; r++) {
+        res.i[0] |= a_src[r];
+    }
+    assert(zero == (res.i[0] == 0));
 
     // Test Equal
     v_mask_i8 mask = uvx_traits<int32_t>::cmpeq(a, b);
@@ -725,6 +751,11 @@ void test_i64_comparison() {
     }
 
     // Comparison and and Select
+    assert(8 == uv_max_lanes(64));
+    int64_t z_src[uv_max_lanes(64)] = {
+               0,          0,         0,         0,
+               0,          0,         0,         0
+    };
     int64_t a_src[uv_max_lanes(64)] = {
                1,         -1,         0,         5,
                1, -INT64_MAX, INT64_MAX,         1
@@ -739,8 +770,24 @@ void test_i64_comparison() {
     const v_i64 v_val_true = uvx_traits<int64_t>::dup(1);
     const v_i64 v_val_false = uvx_traits<int64_t>::dup(0);
 
+    v_i64 z = uvx_traits<int64_t>::load(z_src);
     v_i64 a = uvx_traits<int64_t>::load(a_src);
     v_i64 b = uvx_traits<int64_t>::load(b_src);
+
+    // Test Zero
+    int zero = (uvx_traits<int64_t>::testz(z, z) == 1);
+    res.i[0] = 0;
+    for (int r = 0; r < lanes; r++) {
+        res.i[0] |= z_src[r];
+    }
+    assert(zero == (res.i[0] == 0));
+
+    zero = (uvx_traits<int64_t>::testz(a, a) == 1);
+    res.i[0] = 0;
+    for (int r = 0; r < lanes; r++) {
+        res.i[0] |= a_src[r];
+    }
+    assert(zero == (res.i[0] == 0));
 
     // Test Equal
     v_mask_i8 mask = uvx_traits<int64_t>::cmpeq(a, b);
