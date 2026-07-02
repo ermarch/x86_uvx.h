@@ -290,6 +290,9 @@ extern "C" {
   #define uv_max_f32(a, b)       _mm512_max_ps(a, b)
   #define uv_min_f32(a, b)       _mm512_min_ps(a, b)
 
+  #define uv_floor_f32(v)        _mm512_roundscale_ps((v), _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC)
+  #define uv_ceil_f32(v)         _mm512_roundscale_ps((v), _MM_FROUND_TO_POS_INF | _MM_FROUND_NO_EXC)
+
   #define uv_sqrt_f32(v)         _mm512_sqrt_ps(v)
   #define uv_abs_f32(v)          _mm512_abs_ps(v)
   static inline v_f32 uv_neg_f32(v_f32 v) {
@@ -360,6 +363,9 @@ extern "C" {
   #define uv_div_f32(a, b)       _mm256_div_ps(a, b)
   #define uv_max_f32(a, b)       _mm256_max_ps(a, b)
   #define uv_min_f32(a, b)       _mm256_min_ps(a, b)
+
+  #define uv_floor_f32(v)        _mm256_round_ps((v), _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC)
+  #define uv_ceil_f32(v)         _mm256_round_ps((v), _MM_FROUND_TO_POS_INF | _MM_FROUND_NO_EXC)
 
   #define uv_sqrt_f32(v)         _mm256_sqrt_ps(v)
   static inline v_f32 uv_abs_f32(v_f32 v) {
@@ -448,6 +454,27 @@ extern "C" {
   #define uv_max_f32(a, b)       _mm_max_ps(a, b)
   #define uv_min_f32(a, b)       _mm_min_ps(a, b)
 
+  #if defined(__SSE4_1__)
+    #define uv_floor_f32(v)      _mm_round_ps((v), _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC)
+    #define uv_ceil_f32(v)       _mm_round_ps((v), _MM_FROUND_TO_POS_INF | _MM_FROUND_NO_EXC)
+  #else
+    static inline __m128 uv_floor_f32(__m128 v) {
+      __m128i i = _mm_cvttps_epi32(v);
+      __m128 truncated = _mm_cvtepi32_ps(i);
+      __m128 mask = _mm_cmplt_ps(v, truncated);
+      __m128 one = _mm_set1_ps(1.0f);
+      __m128 adjustment = _mm_and_ps(mask, one);
+      return _mm_sub_ps(truncated, adjustment);
+    }
+    inline __m128 uv_ceil_f32(__m128 v) {
+      __m128i i = _mm_cvttps_epi32(v);
+      __m128 truncated = _mm_cvtepi32_ps(i);
+      __m128 mask = _mm_cmpgt_ps(v, truncated);
+      __m128 one = _mm_set1_ps(1.0f);
+      __m128 adjustment = _mm_and_ps(mask, one);
+      return _mm_add_ps(truncated, adjustment);
+    }
+  #endif
   #define uv_sqrt_f32(v)         _mm_sqrt_ps(v)
   static inline v_f32 uv_abs_f32(v_f32 v) {
     const __m128 sign_mask = _mm_set1_ps(-0.0f);
@@ -677,6 +704,9 @@ extern "C" {
   #define uv_max_f64(a, b)       _mm512_max_pd(a, b)
   #define uv_min_f64(a, b)       _mm512_min_pd(a, b)
 
+  #define uv_floor_f64(v)        _mm512_roundscale_pd((v), _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC)
+  #define uv_ceil_f64(v)         _mm512_roundscale_pd((v), _MM_FROUND_TO_POS_INF | _MM_FROUND_NO_EXC)
+
   #define uv_sqrt_f64(v)         _mm512_sqrt_pd(v)
   #define uv_abs_f64(v)          _mm512_abs_pd(v)
   static inline v_f64 uv_neg_f64(v_f64 v) {
@@ -738,6 +768,9 @@ extern "C" {
   #define uv_max_f64(a, b)       _mm256_max_pd(a, b)
   #define uv_min_f64(a, b)       _mm256_min_pd(a, b)
 
+  #define uv_floor_f64(v)        _mm256_round_pd((v), _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC)
+  #define uv_ceil_f64(v)         _mm256_round_pd((v), _MM_FROUND_TO_POS_INF | _MM_FROUND_NO_EXC)
+
   #define uv_sqrt_f64(v)         _mm256_sqrt_pd(v)
   static inline v_f64 uv_abs_f64(__m256d v) {
     __m256d sign_mask = _mm256_set1_pd(-0.0);
@@ -786,6 +819,28 @@ extern "C" {
   #define uv_div_f64(a, b)       _mm_div_pd(a, b)
   #define uv_max_f64(a, b)       _mm_max_pd(a, b)
   #define uv_min_f64(a, b)       _mm_min_pd(a, b)
+
+  #if defined(__SSE4_1__)
+    #define uv_floor_f64(v)      _mm_round_pd((v), _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC)
+    #define uv_ceil_f64(v)       _mm_round_pd((v), _MM_FROUND_TO_POS_INF | _MM_FROUND_NO_EXC)
+  #else
+    static inline __m128d uv_floor_f64(__m128d v) {
+      __m128i i = _mm_cvttpd_epi32(v);
+      __m128d truncated = _mm_cvtepi32_pd(i);
+      __m128d mask = _mm_cmplt_pd(v, truncated);
+      __m128d one = _mm_set1_pd(1.0f);
+      __m128d adjustment = _mm_and_pd(mask, one);
+      return _mm_sub_pd(truncated, adjustment);
+    }
+    inline __m128d uv_ceil_f64(__m128d v) {
+      __m128i i = _mm_cvttpd_epi32(v);
+      __m128d truncated = _mm_cvtepi32_pd(i);
+      __m128d mask = _mm_cmpgt_pd(v, truncated);
+      __m128d one = _mm_set1_pd(1.0f);
+      __m128d adjustment = _mm_and_pd(mask, one);
+      return _mm_add_pd(truncated, adjustment);
+    }
+  #endif
 
   #define uv_sqrt_f64(v)         _mm_sqrt_pd(v)
   static inline v_f64 uv_abs_f64(v_f64 v) {

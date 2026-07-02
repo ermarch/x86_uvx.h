@@ -51,6 +51,7 @@ All functions are overloaded per data type and automatically scale to the availa
 - `uv_setzero_*()`, `uv_dup_*()`
 
 ### Arithmetic
+- `uv_sqrt_*()`
 - `uv_add_*()`, `uv_sub_*()`, `uv_mul_*()`, `uv_div_*()`
 - `uv_max_*()`, `uv_min_*()`, `uv_abs_*()`, `uv_neg_*()`
 - `uv_fmadd_*()` — Fused multiply-add (with fallback for older CPU features)
@@ -58,6 +59,7 @@ All functions are overloaded per data type and automatically scale to the availa
 
 ### Comparison
 - `uv_cmpgt_*()`, `uv_cmplt_*()`, `uv_cmpeq_i8()`
+- `uv_testz_*()`
 
 ### Selection
 - `uv_select_*()` — masked selection
@@ -66,6 +68,7 @@ All functions are overloaded per data type and automatically scale to the availa
 - `uv_and_*()`, `uv_andnot_*()`, `uv_or_*()`, `uv_xor_*()`
 
 ### Conversions
+- `uv_floor_*()`, `uv_ceil_*()`
 - `uv_cvt_*()` — between integer and floating point types
 - `uv_cvt_i16_i32()`, `uv_cvt_i32_i16()`, `uv_cvt_i8_i32()`, `uv_cvt_i32_i8()`
 
