@@ -534,6 +534,12 @@ void test_f32_comparison() {
     }
 
     // Test Greater-than and Select
+    float z_src[uv_max_lanes(32)] = {
+               0,          0,         0,         0,
+               0,          0,         0,         0,
+               0,          0,         0,         0,
+               0,          0,         0,         0
+    };
     float a_src[uv_max_lanes(32)] = {
             1.0f,     -1.0f,     0.0f,  5.0f,
             1.0f, -INFINITY, INFINITY,  1.0f,
@@ -546,7 +552,86 @@ void test_f32_comparison() {
             1.0f,       NAN,    1e30f,  0.0f,
             1.0f,       NAN,    1e30f,  0.0f
     };
-//TODO
+
+    union { v_f32 f32; float f[uv_lanes(32)]; } res;
+
+    const v_f32 v_val_true = uvx_traits<float>::dup(1);
+    const v_f32 v_val_false = uvx_traits<float>::dup(0);
+
+    v_f32 z = uvx_traits<float>::load(z_src);
+    v_f32 a = uvx_traits<float>::load(a_src);
+    v_f32 b = uvx_traits<float>::load(b_src);
+
+    // Test Zero
+    int zero = (uvx_traits<float>::testz(z, z) == 1);
+    res.f[0] = 0;
+    for (int r = 0; r < lanes; r++) {
+        res.f[0] = scalar_or<float, uint32_t>(res.f[0], z_src[r]);
+    }
+    assert(zero == (res.f[0] == 0));
+
+    zero = (uvx_traits<float>::testz(a, a) == 1);
+    res.f[0] = 0;
+    for (int r = 0; r < lanes; r++) {
+        res.f[0] = scalar_or<float, uint32_t>(res.f[0], a_src[r]);
+    }
+    assert(zero == (res.f[0] == 0));
+
+    // Test Equal
+    v_mask mask = uvx_traits<float>::cmpeq(a, b);
+    res.f32 = uvx_traits<float>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] == b_src[r]) == res.f[r]);
+    }
+
+    // Test Less-than
+    mask = uvx_traits<float>::cmplt(a, b);
+    res.f32 = uvx_traits<float>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] < b_src[r]) == res.f[r]);
+    }
+
+    // Test Less-than or Equal
+    mask = (uvx_traits<float>::cmple(a, b));
+    res.f32 = uvx_traits<float>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] <= b_src[r]) == res.f[r]);
+    }
+
+    // Test Not Equal
+    mask = (uvx_traits<float>::cmpne(a, b));
+    res.f32 = uvx_traits<float>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] != b_src[r]) == res.f[r]);
+    }
+
+    // Test Not Less-than
+    mask = (uvx_traits<float>::cmpnlt(a, b));
+    res.f32 = uvx_traits<float>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert(!(a_src[r] < b_src[r]) == res.f[r]);
+    }
+
+    // Test Greater-than or Equal
+    mask = (uvx_traits<float>::cmpge(a, b));
+    res.f32 = uvx_traits<float>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] >= b_src[r]) == res.f[r]);
+    }
+
+    // Test Not Less-than or Equal
+    mask = (uvx_traits<float>::cmpnle(a, b));
+    res.f32 = uvx_traits<float>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert(!(a_src[r] <= b_src[r]) == res.f[r]);
+    }
+
+    // Test Greater-than
+    mask = (uvx_traits<float>::cmpgt(a, b));
+    res.f32 = uvx_traits<float>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] > b_src[r]) == res.f[r]);
+    }
 
     report("f32 Comparison", true);
 }
@@ -578,6 +663,12 @@ void test_f64_comparison() {
     }
 
     // Test Greater-than and Select
+    double z_src[uv_max_lanes(32)] = {
+               0,          0,         0,         0,
+               0,          0,         0,         0,
+               0,          0,         0,         0,
+               0,          0,         0,         0
+    };
     double a_src[uv_max_lanes(32)] = {
              1.0,      -1.0,      0.0,   5.0,
              1.0, -INFINITY, INFINITY,   1.0,
@@ -590,7 +681,86 @@ void test_f64_comparison() {
              1.0,       NAN,      1e30,  0.0,
              1.0,       NAN,      1e30,  0.0
     };
-// TODO
+
+    union { v_f64 f64; double f[uv_lanes(32)]; } res;
+
+    const v_f64 v_val_true = uvx_traits<double>::dup(1);
+    const v_f64 v_val_false = uvx_traits<double>::dup(0);
+
+    v_f64 z = uvx_traits<double>::load(z_src);
+    v_f64 a = uvx_traits<double>::load(a_src);
+    v_f64 b = uvx_traits<double>::load(b_src);
+
+    // Test Zero
+    int zero = (uvx_traits<double>::testz(z, z) == 1);
+    res.f[0] = 0;
+    for (int r = 0; r < lanes; r++) {
+        res.f[0] = scalar_or<double, uint64_t>(res.f[0], z_src[r]);
+    }
+    assert(zero == (res.f[0] == 0));
+
+    zero = (uvx_traits<double>::testz(a, a) == 1);
+    res.f[0] = 0;
+    for (int r = 0; r < lanes; r++) {
+        res.f[0] = scalar_or<double, uint64_t>(res.f[0], a_src[r]);
+    }
+    assert(zero == (res.f[0] == 0));
+
+    // Test Equal
+    v_mask_f64 mask = uvx_traits<double>::cmpeq(a, b);
+    res.f64 = uvx_traits<double>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] == b_src[r]) == res.f[r]);
+    }
+
+    // Test Less-than
+    mask = uvx_traits<double>::cmplt(a, b);
+    res.f64 = uvx_traits<double>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] < b_src[r]) == res.f[r]);
+    }
+
+    // Test Less-than or Equal
+    mask = (uvx_traits<double>::cmple(a, b));
+    res.f64 = uvx_traits<double>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] <= b_src[r]) == res.f[r]);
+    }
+
+    // Test Not Equal
+    mask = (uvx_traits<double>::cmpne(a, b));
+    res.f64 = uvx_traits<double>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] != b_src[r]) == res.f[r]);
+    }
+
+    // Test Not Less-than
+    mask = (uvx_traits<double>::cmpnlt(a, b));
+    res.f64 = uvx_traits<double>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert(!(a_src[r] < b_src[r]) == res.f[r]);
+    }
+
+    // Test Greater-than or Equal
+    mask = (uvx_traits<double>::cmpge(a, b));
+    res.f64 = uvx_traits<double>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] >= b_src[r]) == res.f[r]);
+    }
+
+    // Test Not Less-than or Equal
+    mask = (uvx_traits<double>::cmpnle(a, b));
+    res.f64 = uvx_traits<double>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert(!(a_src[r] <= b_src[r]) == res.f[r]);
+    }
+
+    // Test Greater-than
+    mask = (uvx_traits<double>::cmpgt(a, b));
+    res.f64 = uvx_traits<double>::select(mask, v_val_true, v_val_false);
+    for (int r = 0; r < lanes; r++) {
+        assert((a_src[r] > b_src[r]) == res.f[r]);
+    }
 
     report("f64 Comparison", true);
 }
@@ -697,7 +867,7 @@ void test_i32_comparison() {
     mask = (uvx_traits<int32_t>::cmpnlt(a, b));
     res.epi32 = uvx_traits<int32_t>::select(mask, v_val_true, v_val_false);
     for (int r = 0; r < lanes; r++) {
-        assert(!(a_src[r] < b_src[r]) == res.i[r]);
+        assert((!(a_src[r] < b_src[r])) == res.i[r]);
     }
 
     // Test Greater-than or Equal
@@ -711,7 +881,7 @@ void test_i32_comparison() {
     mask = (uvx_traits<int32_t>::cmpnle(a, b));
     res.epi32 = uvx_traits<int32_t>::select(mask, v_val_true, v_val_false);
     for (int r = 0; r < lanes; r++) {
-        assert(!(a_src[r] <= b_src[r]) == res.i[r]);
+        assert((!(a_src[r] <= b_src[r])) == res.i[r]);
     }
 
     // Test Greater-than
@@ -821,7 +991,7 @@ void test_i64_comparison() {
     mask = (uvx_traits<int64_t>::cmpnlt(a, b));
     res.epi64 = uvx_traits<int64_t>::select(mask, v_val_true, v_val_false);
     for (int r = 0; r < lanes; r++) {
-        assert(!(a_src[r] < b_src[r]) == res.i[r]);
+        assert((!(a_src[r] < b_src[r])) == res.i[r]);
     }
 
     // Test Greater-than or Equal
@@ -835,7 +1005,7 @@ void test_i64_comparison() {
     mask = (uvx_traits<int64_t>::cmpnle(a, b));
     res.epi64 = uvx_traits<int64_t>::select(mask, v_val_true, v_val_false);
     for (int r = 0; r < lanes; r++) {
-        assert(!(a_src[r] <= b_src[r]) == res.i[r]);
+        assert((!(a_src[r] <= b_src[r])) == res.i[r]);
     }
 
     // Test Greater-than
@@ -881,7 +1051,7 @@ void test_f32_logic() {
         u_res.f = dst[i];
         u_s1.f = src1[i];
         u_s2.f = src2[i];
-        assert(u_res.i == (scalar_and<float, int32_t>(u_s1.f, u_s2.f)));
+        assert(u_res.i == (scalar_and<float, uint32_t>(u_s1.f, u_s2.f)));
     }
 
     // Test ANDNOT
@@ -892,7 +1062,7 @@ void test_f32_logic() {
         u_res.f = dst[i];
         u_s1.f = src1[i];
         u_s2.f = src2[i];
-        assert(u_res.i == (scalar_andnot<float, int32_t>(u_s1.f, u_s2.f)));
+        assert(u_res.i == (scalar_andnot<float, uint32_t>(u_s1.f, u_s2.f)));
     }
 
     // Test OR
@@ -903,7 +1073,7 @@ void test_f32_logic() {
         u_res.f = dst[i];
         u_s1.f = src1[i];
         u_s2.f = src2[i];
-        assert(u_res.i == (scalar_or<float, int32_t>(u_s1.f, u_s2.f)));
+        assert(u_res.i == (scalar_or<float, uint32_t>(u_s1.f, u_s2.f)));
     }
 
     // Test XOR
@@ -914,7 +1084,7 @@ void test_f32_logic() {
         u_res.f = dst[i];
         u_s1.f = src1[i];
         u_s2.f = src2[i];
-        assert(u_res.i == (scalar_xor<float, int32_t>(u_s1.f, u_s2.f)));
+        assert(u_res.i == (scalar_xor<float, uint32_t>(u_s1.f, u_s2.f)));
     }
 
     report("f32 Bitwise Logic", true);
@@ -950,7 +1120,7 @@ void test_f64_logic() {
         u_res.f = dst[i];
         u_s1.f = src1[i];
         u_s2.f = src2[i];
-        assert(u_res.i == (scalar_and<double, int64_t>(u_s1.f, u_s2.f)));
+        assert(u_res.i == (scalar_and<double, uint64_t>(u_s1.f, u_s2.f)));
     }
 
     // Test ANDNOT
@@ -961,7 +1131,7 @@ void test_f64_logic() {
         u_res.f = dst[i];
         u_s1.f = src1[i];
         u_s2.f = src2[i];
-        assert(u_res.i == (scalar_andnot<double, int64_t>(u_s1.f, u_s2.f)));
+        assert(u_res.i == (scalar_andnot<double, uint64_t>(u_s1.f, u_s2.f)));
     }
 
     // Test OR
@@ -972,7 +1142,7 @@ void test_f64_logic() {
         u_res.f = dst[i];
         u_s1.f = src1[i];
         u_s2.f = src2[i];
-        assert(u_res.i == (scalar_or<double, int64_t>(u_s1.f, u_s2.f)));
+        assert(u_res.i == (scalar_or<double, uint64_t>(u_s1.f, u_s2.f)));
     }
 
     // Test XOR
@@ -983,7 +1153,7 @@ void test_f64_logic() {
         u_res.f = dst[i];
         u_s1.f = src1[i];
         u_s2.f = src2[i];
-        assert(u_res.i == (scalar_xor<double, int64_t>(u_s1.f, u_s2.f)));
+        assert(u_res.i == (scalar_xor<double, uint64_t>(u_s1.f, u_s2.f)));
     }
 
     report("f64 Bitwise Logic", true);
