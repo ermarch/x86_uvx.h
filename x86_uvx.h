@@ -496,8 +496,9 @@ extern "C" {
   #if defined(__SSE4_1__)
     #define uv_testz_f32(v, m)   _mm_testz_si128(_mm_castps_si128(v), _mm_castps_si128(m))
   #else
-    static inline int uv_testz_f32(v_f32 v, v_f32 m) {
-      __m128i cmp = _mm_cmpeq_epi8(_mm_castps_si128(v), _mm_castps_si128(m));
+  static inline int uv_testz_f32(v_f32 v, v_f32 m) {
+      __m128i r = _mm_and_si128(_mm_castps_si128(v), _mm_castps_si128(m));
+      __m128i cmp = _mm_cmpeq_epi8(r, _mm_setzero_si128());
       return _mm_movemask_epi8(cmp) == 0xFFFF;
     }
   #endif
@@ -721,8 +722,8 @@ extern "C" {
   #if defined(__AVX512DQ__) || defined(__AVX10__) || defined(_MSC_VER)
     #define uv_and_f64(a, b)     _mm512_and_pd(a, b)
     #define uv_andnot_f64(a, b)  _mm512_andnot_pd(a, b)
-    #define uv_or_f64(a, b)        _mm512_or_pd(a, b)
-    #define uv_xor_f64(a, b)       _mm512_xor_pd(a, b)
+    #define uv_or_f64(a, b)      _mm512_or_pd(a, b)
+    #define uv_xor_f64(a, b)     _mm512_xor_pd(a, b)
   #else
     static inline v_f64 uv_and_f64(v_f64 a, v_f64 b) {
       return _mm512_castsi512_pd(_mm512_and_si512(_mm512_castpd_si512(a), _mm512_castpd_si512(b)));
@@ -738,10 +739,7 @@ extern "C" {
     }
   #endif
 
-  static inline int uv_testz_f64(v_f64 v, v_f64 m) {
-    __mmask16 mask = _mm512_cmpneq_pd_mask(v, m);
-    return mask == 0;
-  }
+  #define uv_testz_f64(v, m)     (_mm512_test_epi64_mask(_mm512_castpd_si512(v), _mm512_castpd_si512(m)) == 0)
   #define uv_cmpeq_f64(a, b)     _mm512_cmp_pd_mask(a, b, _CMP_EQ_OS)
   #define uv_cmplt_f64(a, b)     _mm512_cmp_pd_mask(a, b, _CMP_LT_OS)
   #define uv_cmple_f64(a, b)     _mm512_cmp_pd_mask(a, b, _CMP_LE_OS)
@@ -861,10 +859,11 @@ extern "C" {
   #define uv_xor_f64(a, b)       _mm_xor_pd(a, b)
 
   #if defined(__SSE4_1__)
-    #define uv_testz_f64(v, m)   _mm_testz_si128(_mm_castpd_si128(v), _mm_castpd_si128(m))
+    #define uv_testz_f64(v, a)   _mm_testz_si128(_mm_castpd_si128(v), _mm_castpd_si128(m))
   #else
-  static inline int uv_testz_f64(v_f64 v, v_f64 m) {
-      __m128i cmp = _mm_cmpeq_epi8(_mm_castpd_si128(v), _mm_castpd_si128(m));
+    static inline int uv_testz_f64(v_f64 v, v_f64 m) {
+      __m128i r = _mm_and_si128(_mm_castpd_si128(v), _mm_castpd_si128(m));
+      __m128i cmp = _mm_cmpeq_epi8(r, _mm_setzero_si128());
       return _mm_movemask_epi8(cmp) == 0xFFFF;
     }
   #endif
@@ -1415,22 +1414,8 @@ extern "C" {
   }
 
   static inline v_i32 uv_cvt_i32_i16(v_i32 v) {
-    #if defined(__AVX512VL__) || defined(__AVX10__) || defined(_MSC_VER)
         __m256i packed = _mm512_cvtepi32_epi16(v);
         return _mm512_castsi256_si512(packed);
-    #else
-        __m512i low_bits = _mm512_and_si512(v, _mm512_set1_epi32(0xFFFF));
-        __m512i shifted = _mm512_srli_epi32(low_bits, 16);
-
-        alignas(32) float tmp[16];
-        _mm512_store_ps(tmp, (_mm512_castsi512_ps(v)));
-        int32_t *itmp = (int32_t*)tmp;
-        int16_t *otmp = (int16_t*)tmp;
-        for (int i = 0; i < 16; ++i) {
-            otmp[i] = (int16_t)itmp[i];
-        }
-        return _mm512_castps_si512(_mm512_load_ps(tmp));
-    #endif
   }
 
   static inline v_i32 uv_cvt_i8_i32(v_i32 v) {
