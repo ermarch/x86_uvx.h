@@ -328,8 +328,7 @@ extern "C" {
   #endif
 
   static inline int uv_testz_f32(v_f32 v, v_f32 m) {
-    __mmask16 mask = _mm512_cmpneq_ps_mask(v, m);
-    return mask == 0;
+    return _mm512_test_epi32_mask(_mm512_castps_si512(v), _mm512_castps_si512(m)) == 0;
   }
   #define uv_cmpeq_f32(a, b)     _mm512_cmp_ps_mask(a, b, _CMP_EQ_OS)
   #define uv_cmplt_f32(a, b)     _mm512_cmp_ps_mask(a, b, _CMP_LT_OS)
@@ -378,7 +377,7 @@ extern "C" {
   }
 
   static inline v_f32 uv_not_f32(v_f32 v) {
-    return _mm256_andnot_ps(v, _mm256_cmp_ps(v, v, _CMP_EQ_OS));
+    return _mm256_xor_ps(v, _mm256_castsi256_ps(_mm256_set1_epi32(-1)));
   }
   #define uv_and_f32(a, b)       _mm256_and_ps(a, b)
   #define uv_andnot_f32(a, b)    _mm256_andnot_ps(a, b)
@@ -466,7 +465,7 @@ extern "C" {
       __m128 adjustment = _mm_and_ps(mask, one);
       return _mm_sub_ps(truncated, adjustment);
     }
-    inline __m128 uv_ceil_f32(__m128 v) {
+    static inline __m128 uv_ceil_f32(__m128 v) {
       __m128i i = _mm_cvttps_epi32(v);
       __m128 truncated = _mm_cvtepi32_ps(i);
       __m128 mask = _mm_cmpgt_ps(v, truncated);
@@ -486,7 +485,7 @@ extern "C" {
   }
 
   static inline v_f32 uv_not_f32(v_f32 v) {
-    return _mm_andnot_ps(v, _mm_cmpeq_ps(v, v));
+    return _mm_xor_ps(v, _mm_castsi128_ps(_mm_set1_epi32(-1)));
   }
   #define uv_and_f32(a, b)       _mm_and_ps(a, b)
   #define uv_andnot_f32(a, b)    _mm_andnot_ps(a, b)
@@ -614,7 +613,12 @@ extern "C" {
     return res;
   }
 
-  #define uv_testz_f32(v, m)     (((int32_t)(v) & (int32_t)(m)) == 0)
+  static inline int uv_testz_f32(v_f32 v, v_f32 m) {
+    uint32_t vi, mi;
+    memcpy(&vi, &v, 4);
+    memcpy(&mi, &m, 4);
+    return (vi & mi) == 0;
+  }
   #define uv_cmpeq_f32(a, b)     ((a) == (b))
   #define uv_cmplt_f32(a, b)     ((a) < (b))
   #define uv_cmple_f32(a, b)     ((a) <= (b))
@@ -628,11 +632,15 @@ extern "C" {
 
   static inline int32_t uv_cvt_f32_i32(float v) {
     v = v + 12582912.0f;
-    return *(int32_t*)&v - 0x4B400000;
+    int32_t r;
+    memcpy(&r, &v, 4);
+    return r - 0x4B400000;
   }
   static inline float uv_cvt_i32_f32(int32_t v) {
-    v = v + 0x4B400000;
-    return *(float*)&v - 12582912.0f;
+    int32_t t = v + 0x4B400000;
+    float f;
+    memcpy(&f, &t, 4);
+    return f - 12582912.0f;
   }
 
   #define uv_reduce_add_f32(v)   (v)
@@ -780,7 +788,7 @@ extern "C" {
   }
 
   static inline v_f64 uv_not_f64(v_f64 v) {
-    return _mm256_andnot_pd(v, _mm256_cmp_pd(v, v, _CMP_EQ_OS));
+    return _mm256_xor_pd(v, _mm256_castsi256_pd(_mm256_set1_epi64x(-1)));
   }
   #define uv_and_f64(a, b)       _mm256_and_pd(a, b)
   #define uv_andnot_f64(a, b)    _mm256_andnot_pd(a, b)
@@ -830,7 +838,7 @@ extern "C" {
       __m128d adjustment = _mm_and_pd(mask, one);
       return _mm_sub_pd(truncated, adjustment);
     }
-    inline __m128d uv_ceil_f64(__m128d v) {
+    static inline __m128d uv_ceil_f64(__m128d v) {
       __m128i i = _mm_cvttpd_epi32(v);
       __m128d truncated = _mm_cvtepi32_pd(i);
       __m128d mask = _mm_cmpgt_pd(v, truncated);
@@ -851,7 +859,7 @@ extern "C" {
   }
 
   static inline v_f64 uv_not_f64(v_f64 v) {
-    return _mm_andnot_pd(v, _mm_cmpeq_pd(v, v));
+    return _mm_xor_pd(v, _mm_castsi128_pd(_mm_set1_epi32(-1)));
   }
   #define uv_and_f64(a, b)       _mm_and_pd(a, b)
   #define uv_andnot_f64(a, b)    _mm_andnot_pd(a, b)
@@ -859,7 +867,7 @@ extern "C" {
   #define uv_xor_f64(a, b)       _mm_xor_pd(a, b)
 
   #if defined(__SSE4_1__)
-    #define uv_testz_f64(v, a)   _mm_testz_si128(_mm_castpd_si128(v), _mm_castpd_si128(m))
+    #define uv_testz_f64(v, m)   _mm_testz_si128(_mm_castpd_si128(v), _mm_castpd_si128(m))
   #else
     static inline int uv_testz_f64(v_f64 v, v_f64 m) {
       __m128i r = _mm_and_si128(_mm_castpd_si128(v), _mm_castpd_si128(m));
@@ -917,7 +925,7 @@ extern "C" {
   #define uv_min_f64(a, b)       ((a) < (b) ? (a) : (b))
 
   #define uv_sqrt_f64(v)         sqrt(v)
-  #define uv_abs_f64(v)          fabsf(v)
+  #define uv_abs_f64(v)          fabs(v)
   #define uv_neg_f64(v)          (-(v))
 
   static inline v_f64 uv_not_f64(v_f64 v) {
@@ -968,7 +976,12 @@ extern "C" {
     return res;
   }
 
-  #define uv_testz_f64(v, m)     (((int64_t)(v) & (int64_t)(m)) == 0ULL)
+  static inline int uv_testz_f64(v_f64 v, v_f64 m) {
+    uint64_t vi, mi;
+    memcpy(&vi, &v, 8);
+    memcpy(&mi, &m, 8);
+    return (vi & mi) == 0;
+  }
   #define uv_cmpeq_f64(a, b)     ((a) == (b))
   #define uv_cmplt_f64(a, b)     ((a) < (b))
   #define uv_cmple_f64(a, b)     ((a) <= (b))
@@ -981,7 +994,6 @@ extern "C" {
   #define uv_select_f64(m, t, f) ((m) ? (t) : (f))
 #endif
 
-#include <stdio.h>
 /*
  * 64-bit Integer support
  */
@@ -1041,8 +1053,15 @@ extern "C" {
 
   #define uv_select_i64(m, t, f) _mm512_mask_blend_epi64(m, f, t)
 
-  #define uv_shl_i64(v, imm)     _mm512_slli_epi64(v, imm)
-  #define uv_shr_i64(v, imm)     _mm512_srai_epi64(v, imm)
+  static inline v_i64 uv_shl_i64(v_i64 v, unsigned int imm) {
+    if (imm >= 64) return _mm512_setzero_si512();
+    return _mm512_slli_epi64(v, (int)imm);
+  }
+  static inline v_i64 uv_shr_i64(v_i64 v, unsigned int imm) {
+    if (imm == 0) return v;
+    if (imm >= 64) imm = 63;   // arithmetic shift: >= 64 == sign fill
+    return _mm512_srai_epi64(v, (int)imm);
+  }
 
   static inline v_i64 uv_cvt_f64_i64(v_f64 v) {
     #if defined(__AVX512DQ__) || defined(__AVX10__) || defined(_MSC_VER)
@@ -1117,14 +1136,17 @@ extern "C" {
     #define uv_select_i64(m, t, f) _mm256_blendv_epi8(f, t ,m)
   #endif
 
-  #define uv_shl_i64(v, imm)     _mm256_slli_epi64(v, imm)
+  static inline v_i64 uv_shl_i64(v_i64 v, unsigned int imm) {
+    if (imm >= 64) return _mm256_setzero_si256();
+    return _mm256_slli_epi64(v, (int)imm);
+  }
   static inline v_i64 uv_shr_i64(v_i64 v, unsigned int imm) {
     if (imm == 0) return v;
-    if (imm >= 63) return _mm256_srai_epi32(v, 31);
-    __m256i logical_shifted = _mm256_srli_epi64(v, imm);
-    __m256i sign_bits = _mm256_srai_epi32(v, imm);
-    __m256i upper_32_mask = _mm256_set1_epi64x(0xFFFFFFFF00000000ULL);
-    return _mm256_blendv_epi8(logical_shifted, sign_bits, upper_32_mask);
+    if (imm >= 64) imm = 63;   // arithmetic shift: >= 64 == sign fill
+    __m256i logical_shifted = _mm256_srli_epi64(v, (int)imm);
+    __m256i sign = _mm256_cmpgt_epi64(_mm256_setzero_si256(), v);
+    __m256i fill = _mm256_slli_epi64(sign, 64 - (int)imm);
+    return _mm256_or_si256(logical_shifted, fill);
   }
 
   #define uv_add_i64(a, b)       _mm256_add_epi64(a, b)
@@ -1148,9 +1170,8 @@ extern "C" {
                            _mm256_andnot_si256(uv_cmplt_i64(a, b), b));
   }
   static inline v_i64 uv_abs_i64(v_i64 v) {
-    __m256i mask = uv_shl_i64(v, 31);
-    __m256i xored = _mm256_xor_si256(v, mask);
-    return _mm256_sub_epi64(xored, mask);
+    __m256i sign = _mm256_cmpgt_epi64(_mm256_setzero_si256(), v);
+    return _mm256_sub_epi64(_mm256_xor_si256(v, sign), sign);
   }
   static inline v_i64 uv_neg_i64(v_i64 v) {
     __m256i zero = _mm256_setzero_si256();
@@ -1186,7 +1207,7 @@ extern "C" {
   #define uv_dup_i64(v)          _mm_set1_epi64x(v)
 
   #if defined(__SSE4_1__)
-    #define uv_testz_i64(v, a)   _mm_testz_si128(v, m)
+    #define uv_testz_i64(v, m)   _mm_testz_si128(v, m)
   #else
     static inline int uv_testz_i64(v_i64 v, v_i64 m) {
       __m128i r = _mm_and_si128(v, m);
@@ -1276,9 +1297,8 @@ extern "C" {
                         _mm_andnot_si128(uv_cmplt_i64(a, b), b));
   }
   static inline v_i64 uv_abs_i64(v_i64 v) {
-    __m128i mask = _mm_srai_epi32(v, 31);
-    __m128i xored = _mm_xor_si128(v, mask);
-    return _mm_sub_epi64(xored, mask);
+    __m128i sign = uv_cmpgt_i64(_mm_setzero_si128(), v);
+    return _mm_sub_epi64(_mm_xor_si128(v, sign), sign);
   }
   static inline v_i64 uv_neg_i64(v_i64 v) {
     __m128i zero = _mm_setzero_si128();
@@ -1293,16 +1313,17 @@ extern "C" {
   #define uv_or_i64(a, b)        _mm_or_si128(a, b)
   #define uv_xor_i64(a, b)       _mm_xor_si128(a, b)
 
-  #define uv_shl_i64(v, imm)     _mm_slli_epi64(v, imm)
+  static inline v_i64 uv_shl_i64(v_i64 v, unsigned int imm) {
+    if (imm >= 64) return _mm_setzero_si128();
+    return _mm_slli_epi64(v, (int)imm);
+  }
   static inline v_i64 uv_shr_i64(v_i64 v, unsigned int imm) {
-    if (imm >= 64) imm = 64;
-    __m128i logical_shift = _mm_srli_epi64(v, imm);
-    __m128i sign_high = _mm_shuffle_epi32(v, _MM_SHUFFLE(3, 3, 1, 1));
-    __m128i sign_mask = _mm_cmplt_epi32(sign_high, _mm_setzero_si128());
-    sign_mask = _mm_shuffle_epi32(sign_mask, _MM_SHUFFLE(3, 2, 1, 0));
-    __m128i fill_mask = _mm_srli_epi64(sign_mask, 64 - imm);
-    // 4. Combine the logical shift with the fill mask
-    return _mm_or_si128(logical_shift, fill_mask);
+    if (imm == 0) return v;
+    if (imm >= 64) imm = 63;   // arithmetic shift: >= 64 == sign fill
+    __m128i logical_shift = _mm_srli_epi64(v, (int)imm);
+    __m128i sign = uv_cmpgt_i64(_mm_setzero_si128(), v);
+    __m128i fill = _mm_slli_epi64(sign, 64 - (int)imm);
+    return _mm_or_si128(logical_shift, fill);
   }
 
   static inline v_i64 uv_cvt_f64_i64(v_f64 v) {
@@ -1352,8 +1373,12 @@ extern "C" {
 
   #define uv_select_i64(m, t, f) ((m) ? (t) : (f))
 
-  #define uv_shl_i64(v, imm)     ((v) << (imm))
-  #define uv_shr_i64(v, imm)     ((v) >> (imm))
+  static inline int64_t uv_shl_i64(int64_t v, unsigned int imm) {
+    return (imm >= 64) ? 0 : (v << imm);
+  }
+  static inline int64_t uv_shr_i64(int64_t v, unsigned int imm) {
+    return (imm >= 64) ? ((v < 0) ? -1 : 0) : (v >> imm);
+  }
 
   #define uv_cvt_f64_i64(v)      (int64_t)(v)
   #define uv_cvt_i64_f64(v)      (double)(v)
@@ -1405,8 +1430,15 @@ extern "C" {
 
   #define uv_select_i32(m, t, f) _mm512_mask_blend_epi32(m, f, t)
 
-  #define uv_shl_i32(v, imm)     _mm512_slli_epi32(v, imm)
-  #define uv_shr_i32(v, imm)     _mm512_srai_epi32(v, imm)
+  static inline v_i32 uv_shl_i32(v_i32 v, unsigned int imm) {
+    if (imm >= 32) return _mm512_setzero_si512();
+    return _mm512_slli_epi32(v, (int)imm);
+  }
+  static inline v_i32 uv_shr_i32(v_i32 v, unsigned int imm) {
+    if (imm == 0) return v;
+    if (imm >= 32) imm = 31;   // arithmetic shift: >= 32 == sign fill
+    return _mm512_srai_epi32(v, (int)imm);
+  }
 
   static inline v_i32 uv_cvt_i16_i32(v_i32 v) {
     __m256i low_half = _mm512_castsi512_si256(v);
@@ -1428,7 +1460,7 @@ extern "C" {
         __m128i packed = _mm512_cvtepi32_epi8(v);
         return _mm512_castsi128_si512(packed);
     #else
-        alignas(32) float tmp[16];
+        alignas(64) float tmp[16];
         _mm512_store_ps(tmp, _mm512_castsi512_ps(v));
 
         int32_t *src_ptr = (int32_t*)tmp;
@@ -1498,8 +1530,15 @@ extern "C" {
     #define uv_select_i32(m, t, f) _mm256_blendv_epi8(f, t ,m)
   #endif
 
-  #define uv_shl_i32(v, imm)     _mm256_slli_epi32(v, imm)
-  #define uv_shr_i32(v, imm)     _mm256_srai_epi32(v, imm)
+  static inline v_i32 uv_shl_i32(v_i32 v, unsigned int imm) {
+    if (imm >= 32) return _mm256_setzero_si256();
+    return _mm256_slli_epi32(v, (int)imm);
+  }
+  static inline v_i32 uv_shr_i32(v_i32 v, unsigned int imm) {
+    if (imm == 0) return v;
+    if (imm >= 32) imm = 31;   // arithmetic shift: >= 32 == sign fill
+    return _mm256_srai_epi32(v, (int)imm);
+  }
 
   static inline v_i32 uv_cvt_i16_i32(v_i32 v) {
     return _mm256_cvtepi16_epi32(_mm256_castsi256_si128(v));
@@ -1610,8 +1649,15 @@ extern "C" {
     #define uv_select_i32(m, t, f) _mm_or_si128(_mm_andnot_si128(m, f), _mm_and_si128(m, t))
   #endif
 
-  #define uv_shl_i32(v, imm)     _mm_slli_epi32(v, imm)
-  #define uv_shr_i32(v, imm)     _mm_srai_epi32(v, imm)
+  static inline v_i32 uv_shl_i32(v_i32 v, unsigned int imm) {
+    if (imm >= 32) return _mm_setzero_si128();
+    return _mm_slli_epi32(v, (int)imm);
+  }
+  static inline v_i32 uv_shr_i32(v_i32 v, unsigned int imm) {
+    if (imm == 0) return v;
+    if (imm >= 32) imm = 31;   // arithmetic shift: >= 32 == sign fill
+    return _mm_srai_epi32(v, (int)imm);
+  }
 
   static inline v_i32 uv_cvt_i16_i32(v_i32 v) {
     __m128i low_sign = _mm_unpacklo_epi16(v, v);
@@ -1667,8 +1713,12 @@ extern "C" {
 
   #define uv_select_i32(m, t, f) ((m) ? (t) : (f))
 
-  #define uv_shl_i32(v, imm)     ((v) << (imm))
-  #define uv_shr_i32(v, imm)     ((v) >> (imm))
+  static inline int32_t uv_shl_i32(int32_t v, unsigned int imm) {
+    return (imm >= 32) ? 0 : (v << imm);
+  }
+  static inline int32_t uv_shr_i32(int32_t v, unsigned int imm) {
+    return (imm >= 32) ? ((v < 0) ? -1 : 0) : (v >> imm);
+  }
 
   static inline int32_t uv_cvt_i16_i32(int32_t v) {
     return (int32_t)((int16_t)v);
@@ -1734,35 +1784,39 @@ extern "C" {
     #define uv_cmpeq_i8(a, b)    _mm512_cmpeq_epi8_mask(a, b)
     #define uv_cmplt_i8(a, b)    _mm512_cmplt_epi8_mask(a, b)
 
-    #define uv_shuffle_i8(a, b)  _mm512_s nlooks like it can be made smaller by lettshuffle_epi8(a, b)
+    #define uv_shuffle_i8(a, b)  _mm512_shuffle_epi8(a, b)
     #if defined(__AVX512VBMI__)
       #define uv_permutexvar_i8(idx, v)  _mm512_permutexvar_epi8(idx, v)
     #else
       static inline v_i8 uv_permutexvar_i8(v_i8 idx, v_i8 a) {
-        __m512i a_lane0 = a;
-        __m512i a_lane1 = _mm512_permutex_epi64(a, _MM_SHUFFLE(0, 3, 2, 1));
-        __m512i a_lane2 = _mm512_permutex_epi64(a, _MM_SHUFFLE(1, 0, 3, 2));
-        __m512i a_lane3 = _mm512_permutex_epi64(a, _MM_SHUFFLE(2, 1, 0, 3));
-        __m512i mask_0 = _mm512_and_si512(idx, _mm512_set1_epi8(0x0F));
-        __mmask64 k0   = _mm512_cmpge_epu8_mask(idx, _mm512_set1_epi8(16));
-        __m512i idx_0  = _mm512_mask_set1_epi8(mask_0, k0, 0x80);
-        __m512i idx_sub16 = _mm512_sub_epi8(idx, _mm512_set1_epi8(16));
-        __m512i mask_1    = _mm512_and_si512(idx_sub16, _mm512_set1_epi8(0x0F));
-        __mmask64 k1      = _mm512_cmpge_epu8_mask(idx_sub16, _mm512_set1_epi8(16));
-        __m512i idx_1     = _mm512_mask_set1_epi8(mask_1, k1, 0x80);
-        __m512i idx_sub32 = _mm512_sub_epi8(idx, _mm512_set1_epi8(32));
-        __m512i mask_2    = _mm512_and_si512(idx_sub32, _mm512_set1_epi8(0x0F));
-        __mmask64 k2      = _mm512_cmpge_epu8_mask(idx_sub32, _mm512_set1_epi8(16));
-        __m512i idx_2     = _mm512_mask_set1_epi8(mask_2, k2, 0x80);
-        __m512i idx_sub48 = _mm512_sub_epi8(idx, _mm512_set1_epi8(48));
-        __m512i idx_3     = _mm512_and_si512(idx_sub48, _mm512_set1_epi8(0x0F));
-        __m512i res0 = _mm512_shuffle_epi8(a_lane0, idx_0);
-        __m512i res1 = _mm512_shuffle_epi8(a_lane1, idx_1);
-        __m512i res2 = _mm512_shuffle_epi8(a_lane2, idx_2);
-        __m512i res3 = _mm512_shuffle_epi8(a_lane3, idx_3);
-        __m512i out_half1 = _mm512_or_si512(res0, res1);
-        __m512i out_half2 = _mm512_or_si512(res2, res3);
-        return _mm512_or_si512(out_half1, out_half2);
+        // Emulate vpermb with AVX512BW only: per byte the source 128-bit
+        // lane is idx >> 4 (0..3) and the offset within the lane is
+        // idx & 0x0F. For each rotation r, select the bytes whose source
+        // lane equals (lane + r) mod 4 and shuffle them from a rotated
+        // copy of a; OR the four partial results.
+        const __m512i lane_id = _mm512_set_epi8(
+            3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
+            2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
+            1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
+        const __m512i off = _mm512_and_si512(idx, _mm512_set1_epi8(0x0F));
+        const __m512i src_lane = _mm512_and_si512(
+            _mm512_srli_epi16(idx, 4), _mm512_set1_epi8(0x0F));
+        const __m512i rot1 = _mm512_shuffle_i32x4(a, a, 0x39); /* lanes [1,2,3,0] */
+        const __m512i rot2 = _mm512_shuffle_i32x4(a, a, 0x4E); /* lanes [2,3,0,1] */
+        const __m512i rot3 = _mm512_shuffle_i32x4(a, a, 0x93); /* lanes [3,0,1,2] */
+        const __m512i srcs[4] = { a, rot1, rot2, rot3 };
+        __m512i acc = _mm512_setzero_si512();
+        for (int r = 0; r < 4; r++) {
+          __m512i want = _mm512_and_si512(
+              _mm512_add_epi8(lane_id, _mm512_set1_epi8((char)r)),
+              _mm512_set1_epi8(0x03));
+          __mmask64 m = _mm512_cmpeq_epi8_mask(src_lane, want);
+          __m512i ctrl = _mm512_mask_mov_epi8(
+              _mm512_set1_epi8((char)0x80), m, off);
+          acc = _mm512_or_si512(acc, _mm512_shuffle_epi8(srcs[r], ctrl));
+        }
+        return acc;
       }
     #endif
 
@@ -1781,7 +1835,41 @@ extern "C" {
       return _mm512_inserti64x4(_mm512_castsi256_si512(r_low), r_high, 1);
     }
 
-    #define uv_permutexvar_i8(idx, v) uv_shuffle_i8(v, idx)
+    static inline v_i8 uv_permutexvar_i8(v_i8 idx, v_i8 a) {
+      // Without AVX512BW there is no 512-bit byte shuffle; emulate lane by
+      // lane with 128-bit shuffles. For output lane j, byte with control c
+      // comes from source lane c >> 4, offset c & 0x0F.
+      const __m128i srcs[4] = {
+        _mm512_castsi512_si128(a),
+        _mm512_extracti32x4_epi32(a, 1),
+        _mm512_extracti32x4_epi32(a, 2),
+        _mm512_extracti32x4_epi32(a, 3)
+      };
+      __m128i res[4];
+      // _mm512_extracti32x4_epi32 needs a 2-bit immediate, so unroll lane j.
+#define UVX_PERMB_LANE(j)                                                      \
+      {                                                                        \
+        __m128i c   = _mm512_extracti32x4_epi32(idx, j);                       \
+        __m128i hi  = _mm_and_si128(_mm_srli_epi16(c, 4), _mm_set1_epi8(0x0F)); \
+        __m128i lo  = _mm_and_si128(c, _mm_set1_epi8(0x0F));                   \
+        __m128i acc = _mm_setzero_si128();                                     \
+        for (int r = 0; r < 4; r++) {                                          \
+          __m128i eq = _mm_cmpeq_epi8(hi, _mm_set1_epi8((char)((j + r) & 3))); \
+          __m128i ctrl = _mm_or_si128(_mm_and_si128(eq, lo),                   \
+                                      _mm_andnot_si128(eq, _mm_set1_epi8((char)0x80))); \
+          acc = _mm_or_si128(acc, _mm_shuffle_epi8(srcs[(j + r) & 3], ctrl));  \
+        }                                                                      \
+        res[j] = acc;                                                          \
+      }
+      UVX_PERMB_LANE(0)
+      UVX_PERMB_LANE(1)
+      UVX_PERMB_LANE(2)
+      UVX_PERMB_LANE(3)
+#undef UVX_PERMB_LANE
+      __m256i low  = _mm256_set_m128i(res[1], res[0]);
+      __m256i high = _mm256_set_m128i(res[3], res[2]);
+      return _mm512_inserti64x4(_mm512_castsi256_si512(low), high, 1);
+    }
 
     static inline __mmask64 uv_cmpeq_i8(__m512i a, __m512i b) {
       __m256i a_low  = _mm512_castsi512_si256(a);
@@ -1814,7 +1902,16 @@ extern "C" {
     }
 
     static inline __m512i uv_select_i8(__mmask64 m, __m512i t, __m512i f) {
-      return _mm512_ternarylogic_epi32(_mm512_movm_epi32((__mmask16)m), t, f, 0xD8);
+      // Expand the 64-bit mask to one all-ones byte per set bit, then blend
+      // with integer and/or (both AVX512F) so no AVX512BW is required.
+      alignas(64) uint8_t mb[64];
+      uint64_t mv = (uint64_t)m;
+      for (int i = 0; i < 64; ++i) {
+        mb[i] = (uint8_t)(((mv >> i) & 1) ? 0xFF : 0x00);
+      }
+      __m512i mask = _mm512_load_si512((const void*)mb);
+      return _mm512_or_si512(_mm512_and_si512(mask, t),
+                             _mm512_andnot_si512(mask, f));
     }
 
     static inline __m512i uv_compress_i8(__mmask64 mask, __m512i v) {
@@ -1877,7 +1974,12 @@ extern "C" {
     #define uv_select_i8(m, t, f) _mm_blendv_epi8(f, t, m)
   #else
     static inline v_i8 uv_select_i8(v_mask_i8 m, v_i8 t, v_i8 f) {
-      return _mm_or_si128(_mm_and_si128(m, t), _mm_andnot_si128(m, f));
+      // Expand the sign bit of each mask byte to a full-byte mask so the
+      // semantics match blendv (which selects on the sign bit).
+      __m128i sel = _mm_cmpeq_epi8(
+          _mm_and_si128(m, _mm_set1_epi8((char)0x80)),
+          _mm_set1_epi8((char)0x80));
+      return _mm_or_si128(_mm_and_si128(sel, t), _mm_andnot_si128(sel, f));
     }
   #endif
 
