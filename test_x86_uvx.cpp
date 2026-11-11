@@ -1291,9 +1291,16 @@ void test_f64_convert() {
     double f_src[lanes], f_dst[lanes];
     int64_t i_src[lanes], i_dst[lanes];
 
+    // Values chosen within the exactly-representable double range (|v| < 2^53).
+    // The original expression ((i % 2) ? -1 : 1) << (64 - i*lanes) is UB for
+    // shift counts >= 64 and would silently pass or crash depending on ISA.
+    static const int64_t safe_vals[8] = {
+        0LL, 1LL, -1LL, 4503599627370495LL,          // 2^52 - 1
+        -4503599627370495LL, 1LL << 52, -(1LL << 52), 1234567890123LL
+    };
     for (int i = 0; i < lanes; i++) {
         f_src[i] = (double)(i + 1) * ((i % 2) ? 1.5f : -1.5f);
-        i_src[i] = ((i % 2) ? -1 : 1)<<(64-i*lanes);
+        i_src[i] = safe_vals[i % 8];
     }
 
     v_i64 i_v = uv_loadu_i64(i_src);
@@ -1315,19 +1322,97 @@ void test_f64_convert() {
 
 /**
  * Test Integer 8 (Complex Shuffles)
+ * The original version only exercised the calls without verifying results.
  */
 void test_i8_complex() {
-    int8_t src[64];
-    int8_t dst[64];
-    for(int i=0; i<64; i++) src[i] = (int8_t)i;
+    const int lanes = uv_lanes(8);
+    assert(lanes >= 1 && lanes <= 64);
 
-    v_i32 v_src = uv_loadu_i8(src);
-    v_i32 v_idx = uv_loadu_i8(src);
+    int8_t src[64], dst[64];
+    for (int i = 0; i < 64; i++) src[i] = (int8_t)i;
 
-    v_i32 v_res = uv_permutexvar_i8(v_idx, v_src);
+    // Permutexvar with an identity index must reproduce src exactly on every
+    // ISA level (this catches lane-grouping bugs in the 256/512-bit emulations).
+    int8_t idx_id[64];
+    for (int i = 0; i < 64; i++) idx_id[i] = (int8_t)(i < lanes ? i : 0);
+
+    v_i8 v_src = uv_loadu_i8(src);
+    v_i8 v_idx = uv_loadu_i8(idx_id);
+    v_i8 v_res = uv_permutexvar_i8(v_idx, v_src);
     uv_storeu_i8(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == src[i]);
+    }
+
+    // Reverse permutation within the vector length.
+    int8_t idx_rev[64];
+    for (int i = 0; i < 64; i++) {
+        idx_rev[i] = (int8_t)(i < lanes ? (lanes - 1 - i) : 0);
+    }
+    v_idx = uv_loadu_i8(idx_rev);
+    v_res = uv_permutexvar_i8(v_idx, v_src);
+    uv_storeu_i8(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == src[lanes - 1 - i]);
+    }
+
+    // Byte shuffle with identity control must reproduce src on every level:
+    // the in-lane masking (idx & 0x0F) maps each byte back onto itself.
+    v_idx = uv_loadu_i8(idx_id);
+    v_res = uv_shuffle_i8(v_src, v_idx);
+    uv_storeu_i8(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == src[i]);
+    }
 
     report("i8 Complex (Shuffle/Permute)", true);
+}
+
+/**
+ * Test i8 compress and select with a sparse mask.
+ * Mask representation differs per level (__mmask64 on AVX-512, byte vector
+ * with the high bit set per lane on AVX2/SSE2), so build it per level.
+ */
+void test_i8_compress_select() {
+    const int lanes = uv_lanes(8);
+    int8_t src[64], dst[64], exp[64];
+    for (int i = 0; i < 64; i++) { src[i] = (int8_t)(i + 1); exp[i] = 0; }
+
+    uint64_t maskbits = 0;
+    for (int i = 0; i < lanes; i += 2) maskbits |= (1ULL << i);
+
+    int d = 0;
+    for (int i = 0; i < lanes; i++) {
+        if ((maskbits >> i) & 1) exp[d++] = src[i];
+    }
+
+#if defined(__AVX10__) || defined(__AVX512F__)
+    v_i8 v_res = uv_compress_i8((__mmask64)maskbits, uv_loadu_i8(src));
+#else
+    int8_t mbytes[64];
+    for (int i = 0; i < 64; i++) mbytes[i] = (int8_t)(((maskbits >> i) & 1) ? 0x80 : 0x00);
+    v_i8 v_res = uv_compress_i8(uv_loadu_i8(mbytes), uv_loadu_i8(src));
+#endif
+    uv_storeu_i8(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        assert(dst[i] == exp[i]);
+    }
+
+    // Select with the same sparse mask.
+    int8_t tsrc[64], fsrc[64];
+    for (int i = 0; i < 64; i++) { tsrc[i] = (int8_t)(0x40 + i); fsrc[i] = (int8_t)(0x80 + i); }
+#if defined(__AVX10__) || defined(__AVX512F__)
+    v_res = uv_select_i8((__mmask64)maskbits, uv_loadu_i8(tsrc), uv_loadu_i8(fsrc));
+#else
+    v_res = uv_select_i8(uv_loadu_i8(mbytes), uv_loadu_i8(tsrc), uv_loadu_i8(fsrc));
+#endif
+    uv_storeu_i8(dst, v_res);
+    for (int i = 0; i < lanes; i++) {
+        int8_t expected = ((maskbits >> i) & 1) ? tsrc[i] : fsrc[i];
+        assert(dst[i] == expected);
+    }
+
+    report("i8 Compress/Select", true);
 }
 
 /**
@@ -1365,6 +1450,389 @@ void test_bit_ops() {
     report("Bit Manipulation", true);
 }
 
+/**
+ * Regression: uv_testz_* must implement (v AND m) == 0 on the raw bits,
+ * not "v equals m everywhere" and not a value conversion of the floats.
+ */
+void test_testz_semantics() {
+    // f32: disjoint bit patterns that are non-zero and unequal.
+    {
+        const int lanes = uv_max_lanes(32);
+        float vbuf[lanes], mbuf[lanes];
+        uint32_t vbits = 0xF0F0F0F0u, mbits = 0x0F0F0F0Fu;
+        for (int i = 0; i < lanes; i++) {
+            memcpy(&vbuf[i], &vbits, 4);
+            memcpy(&mbuf[i], &mbits, 4);
+        }
+        v_f32 v = uv_loadu_f32(vbuf);
+        v_f32 m = uv_loadu_f32(mbuf);
+        assert(uv_testz_f32(v, m) == 1);   // disjoint, but v != m
+        assert(uv_testz_f32(v, v) == 0);   // v & v != 0
+        assert(uv_testz_f32(uv_setzero_f32(), v) == 1);
+        assert(uv_testz_f32(v, uv_setzero_f32()) == 1);
+    }
+    // f64
+    {
+        const int lanes = uv_max_lanes(64);
+        double vbuf[lanes], mbuf[lanes];
+        uint64_t vbits = 0xF0F0F0F0F0F0F0F0ull, mbits = 0x0F0F0F0F0F0F0F0Full;
+        for (int i = 0; i < lanes; i++) {
+            memcpy(&vbuf[i], &vbits, 8);
+            memcpy(&mbuf[i], &mbits, 8);
+        }
+        v_f64 v = uv_loadu_f64(vbuf);
+        v_f64 m = uv_loadu_f64(mbuf);
+        assert(uv_testz_f64(v, m) == 1);
+        assert(uv_testz_f64(v, v) == 0);
+        assert(uv_testz_f64(uv_setzero_f64(), v) == 1);
+    }
+    // i32 / i64
+    {
+        v_i32 v32 = uv_dup_i32((int32_t)0xF0F0F0F0u);
+        v_i32 m32 = uv_dup_i32((int32_t)0x0F0F0F0Fu);
+        assert(uv_testz_i32(v32, m32) == 1);
+        assert(uv_testz_i32(v32, v32) == 0);
+    }
+    {
+        v_i64 v64 = uv_dup_i64((int64_t)0xF0F0F0F0F0F0F0F0ull);
+        v_i64 m64 = uv_dup_i64((int64_t)0x0F0F0F0F0F0F0F0Full);
+        assert(uv_testz_i64(v64, m64) == 1);
+        assert(uv_testz_i64(v64, v64) == 0);
+    }
+
+    report("testz bit semantics", true);
+}
+
+/**
+ * Regression: uv_abs_i64 must handle negative values whose bit 31 is clear
+ * (the old shl/srai-by-31 sign trick produced wrong results for these).
+ */
+void test_abs_i64_edge() {
+    static const int64_t vals[] = {
+        0, 1, -1, -2, -0x7FFFFFFFll, -0x100000000ll,
+        0x100000000ll, -123456789012345ll, INT64_MAX, INT64_MIN + 1
+    };
+    const int n = (int)(sizeof(vals) / sizeof(vals[0]));
+    for (int k = 0; k < n; k++) {
+        v_i64 v = uv_dup_i64(vals[k]);
+        v_i64 r = uv_abs_i64(v);
+        int64_t dst[uv_lanes(64)];
+        uv_storeu_i64(dst, r);
+        int64_t expected = (vals[k] < 0) ? -vals[k] : vals[k];
+        for (int i = 0; i < uv_lanes(64); i++) {
+            assert(dst[i] == expected);
+        }
+    }
+
+    report("i64 Abs edge cases", true);
+}
+
+/**
+ * Regression: uv_shr_i64 (arithmetic) for shift counts 0, 32/33, 63, >= 64,
+ * including negative values (the old code clamped imm to 64, which
+ * srli_epi64 masks to 0, and had UB in the fill-mask shift for imm == 0).
+ */
+void test_shr_i64_edges() {
+    static const int64_t vals[] = {
+        -1, -2, INT64_MIN, -0x100000000ll, 12345, -1234567890123ll, INT64_MAX
+    };
+    static const unsigned shifts[] = { 0, 1, 7, 31, 32, 33, 47, 62, 63, 64, 70 };
+    const int nv = (int)(sizeof(vals) / sizeof(vals[0]));
+    const int ns = (int)(sizeof(shifts) / sizeof(shifts[0]));
+
+    for (int k = 0; k < nv; k++) {
+        for (int s = 0; s < ns; s++) {
+            unsigned imm = shifts[s];
+            int64_t expected;
+            if (imm >= 64) {
+                expected = (vals[k] < 0) ? -1 : 0;   // arithmetic fill
+            } else {
+                expected = vals[k] >> imm;           // arithmetic, defined
+            }
+            v_i64 r = uv_shr_i64(uv_dup_i64(vals[k]), imm);
+            int64_t dst[uv_lanes(64)];
+            uv_storeu_i64(dst, r);
+            for (int i = 0; i < uv_lanes(64); i++) {
+                assert(dst[i] == expected);
+            }
+
+            // Left shift: bits shifted out are lost, >= 64 must give 0.
+            // Compute the reference with an unsigned shift (signed << is UB).
+            int64_t lexpected =
+                (imm >= 64) ? 0 : (int64_t)((uint64_t)vals[k] << imm);
+            v_i64 l = uv_shl_i64(uv_dup_i64(vals[k]), imm);
+            int64_t ldst[uv_lanes(64)];
+            uv_storeu_i64(ldst, l);
+            for (int i = 0; i < uv_lanes(64); i++) {
+                assert(ldst[i] == lexpected);
+            }
+        }
+    }
+
+    report("i64 Shift edge cases", true);
+}
+
+/**
+ * uv_shl_i32/uv_shr_i32 for shift counts at and beyond the lane width,
+ * where the hardware instructions mask the count to 5 bits.
+ */
+void test_shift_i32_edges() {
+    static const int32_t vals[] = {
+        -1, -2, INT32_MIN, -0x10000, 12345, -123456789, INT32_MAX
+    };
+    static const unsigned shifts[] = { 0, 1, 15, 30, 31, 32, 40 };
+    const int nv = (int)(sizeof(vals) / sizeof(vals[0]));
+    const int ns = (int)(sizeof(shifts) / sizeof(shifts[0]));
+
+    for (int k = 0; k < nv; k++) {
+        for (int s = 0; s < ns; s++) {
+            unsigned imm = shifts[s];
+            int32_t expected =
+                (imm >= 32) ? ((vals[k] < 0) ? -1 : 0) : (vals[k] >> imm);
+            v_i32 r = uv_shr_i32(uv_dup_i32(vals[k]), imm);
+            int32_t dst[uv_lanes(32)];
+            uv_storeu_i32(dst, r);
+            for (int i = 0; i < uv_lanes(32); i++) {
+                assert(dst[i] == expected);
+            }
+
+            int32_t lexpected =
+                (imm >= 32) ? 0 : (int32_t)((uint32_t)vals[k] << imm);
+            v_i32 l = uv_shl_i32(uv_dup_i32(vals[k]), imm);
+            int32_t ldst[uv_lanes(32)];
+            uv_storeu_i32(ldst, l);
+            for (int i = 0; i < uv_lanes(32); i++) {
+                assert(ldst[i] == lexpected);
+            }
+        }
+    }
+
+    report("i32 Shift edge cases", true);
+}
+
+/**
+ * uv_floor_* and uv_ceil_* had no coverage at all, including negative values
+ * (which is where the SSE2 truncation-based fallbacks can go wrong).
+ */
+void test_floor_ceil() {
+#if UV_REGISTERS > 1   // the header defines no scalar uv_floor_*/uv_ceil_*
+    static const float fvals[] = {
+        1.5f, -1.5f, 2.999f, -2.999f, 0.5f, -0.5f,
+        42.0f, -42.0f, 0.0f, 1e6f, -1e6f, 1234.0001f, -1234.0001f
+    };
+    const int fn = (int)(sizeof(fvals) / sizeof(fvals[0]));
+    for (int k = 0; k < fn; k++) {
+        float fdst[uv_lanes(32)];
+        uv_storeu_f32(fdst, uv_floor_f32(uv_dup_f32(fvals[k])));
+        for (int i = 0; i < uv_lanes(32); i++) {
+            assert(fdst[i] == floorf(fvals[k]));
+        }
+        uv_storeu_f32(fdst, uv_ceil_f32(uv_dup_f32(fvals[k])));
+        for (int i = 0; i < uv_lanes(32); i++) {
+            assert(fdst[i] == ceilf(fvals[k]));
+        }
+    }
+
+    static const double dvals[] = {
+        1.5, -1.5, 2.999, -2.999, 0.5, -0.5,
+        42.0, -42.0, 0.0, 1e6, -1e6, 1234.0001, -1234.0001
+    };
+    const int dn = (int)(sizeof(dvals) / sizeof(dvals[0]));
+    for (int k = 0; k < dn; k++) {
+        double ddst[uv_lanes(64)];
+        uv_storeu_f64(ddst, uv_floor_f64(uv_dup_f64(dvals[k])));
+        for (int i = 0; i < uv_lanes(64); i++) {
+            assert(ddst[i] == floor(dvals[k]));
+        }
+        uv_storeu_f64(ddst, uv_ceil_f64(uv_dup_f64(dvals[k])));
+        for (int i = 0; i < uv_lanes(64); i++) {
+            assert(ddst[i] == ceil(dvals[k]));
+        }
+    }
+
+    report("floor/ceil f32/f64", true);
+#else
+    report("floor/ceil f32/f64 (skipped: undefined at scalar level)", true);
+#endif
+}
+
+/**
+ * Regression: uv_not_f32/f64 must be a bitwise complement. The old
+ * andnot(v, cmpeq(v,v)) construction returned 0 for NaN inputs.
+ */
+void test_not_nan() {
+    // Expect the bitwise complement of the input pattern. (Note: ~NAN is
+    // 0x803FFFFF, not 0xFFFFFFFF; the old andnot(v, cmpeq(v,v)) bug is
+    // caught because it produced 0 for NaN inputs.)
+    float fnan = NAN;
+    uint32_t fnan_bits;
+    memcpy(&fnan_bits, &fnan, 4);
+    float fdst[uv_lanes(32)];
+    uv_storeu_f32(fdst, uv_not_f32(uv_dup_f32(fnan)));
+    for (int i = 0; i < uv_lanes(32); i++) {
+        uint32_t bits;
+        memcpy(&bits, &fdst[i], 4);
+        assert(bits == ~fnan_bits);
+    }
+
+    double dnan = NAN;
+    uint64_t dnan_bits;
+    memcpy(&dnan_bits, &dnan, 8);
+    double ddst[uv_lanes(64)];
+    uv_storeu_f64(ddst, uv_not_f64(uv_dup_f64(dnan)));
+    for (int i = 0; i < uv_lanes(64); i++) {
+        uint64_t bits;
+        memcpy(&bits, &ddst[i], 8);
+        assert(bits == ~dnan_bits);
+    }
+
+    // And a normal value must still be complemented exactly.
+    float one = 1.0f;
+    uint32_t obits, rbits;
+    memcpy(&obits, &one, 4);
+    uv_storeu_f32(fdst, uv_not_f32(uv_dup_f32(one)));
+    memcpy(&rbits, &fdst[0], 4);
+    assert(rbits == ~obits);
+
+    report("not() with NaN", true);
+}
+
+/**
+ * Regression: the scalar uv_cvt_i32_f32 was bit-casting the integer *before*
+ * subtracting the magic constant, producing garbage. Verify both conversion
+ * directions over a range that all ISA paths must handle.
+ */
+void test_cvt_roundtrip() {
+    // f32 <-> i32, well within the magic-number range (|v| < 2^22).
+    static const int32_t ivals[] = {
+        -1000000, -8388608/2, -3, -2, -1, 0, 1, 2, 3, 8388608/2, 1000000
+    };
+    const int n = (int)(sizeof(ivals) / sizeof(ivals[0]));
+    for (int k = 0; k < n; k++) {
+        float fdst[uv_lanes(32)];
+        uv_storeu_f32(fdst, uv_cvt_i32_f32(uv_dup_i32(ivals[k])));
+        for (int i = 0; i < uv_lanes(32); i++) {
+            assert(fdst[i] == (float)ivals[k]);
+        }
+    }
+    // f32 -> i32 rounds to nearest (current rounding mode), like lrintf.
+    static const float fvals[] = {
+        -1000000.5f, -2.5f, -1.5f, -0.5f, 0.5f, 1.5f, 2.5f, 1000000.5f,
+        -3.7f, 3.7f, 42.0f, -42.0f
+    };
+    const int fn = (int)(sizeof(fvals) / sizeof(fvals[0]));
+    for (int k = 0; k < fn; k++) {
+        int32_t idst[uv_lanes(32)];
+        uv_storeu_i32(idst, uv_cvt_f32_i32(uv_dup_f32(fvals[k])));
+        for (int i = 0; i < uv_lanes(32); i++) {
+            assert(idst[i] == (int32_t)lrintf(fvals[k]));
+        }
+    }
+
+    // f64 <-> i64 within the exactly-representable range.
+    static const int64_t jvals[] = {
+        0, 1, -1, 1LL << 40, -(1LL << 40), 1LL << 52, -(1LL << 52),
+        1234567890123ll, -987654321098ll
+    };
+    const int jn = (int)(sizeof(jvals) / sizeof(jvals[0]));
+    for (int k = 0; k < jn; k++) {
+        double ddst[uv_lanes(64)];
+        uv_storeu_f64(ddst, uv_cvt_i64_f64(uv_dup_i64(jvals[k])));
+        for (int i = 0; i < uv_lanes(64); i++) {
+            assert(ddst[i] == (double)jvals[k]);
+        }
+    }
+    static const double dvals[] = {
+        -1000000.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 1000000.5, 42.0, -42.0
+    };
+    const int dn = (int)(sizeof(dvals) / sizeof(dvals[0]));
+    for (int k = 0; k < dn; k++) {
+        int64_t jdst[uv_lanes(64)];
+        uv_storeu_i64(jdst, uv_cvt_f64_i64(uv_dup_f64(dvals[k])));
+        for (int i = 0; i < uv_lanes(64); i++) {
+            assert(jdst[i] == (int64_t)dvals[k]);   // truncation
+        }
+    }
+
+    report("cvt round trips", true);
+}
+
+/**
+ * Regression: uv_mul_i64 (mullo) with operands that exercise the cross-term
+ * path (bits above 32). Reference computed with unsigned wrap-around to
+ * avoid signed overflow UB in the test itself.
+ */
+void test_mul_i64_large() {
+    static const int64_t avals[] = {
+        0x123456789ll, -0x987654321ll, (1LL << 33) + 1, (1LL << 40),
+        INT32_MAX + 1ll, -1, 0, 1
+    };
+    static const int64_t bvals[] = {
+        0x9ABCDEF01ll, 0xABCDEF123ll, 3, -5, 0x111111111ll, 0x7FFFFFFFll, 7, -9
+    };
+    const int n = (int)(sizeof(avals) / sizeof(avals[0]));
+    for (int k = 0; k < n; k++) {
+        int64_t expected = (int64_t)((uint64_t)avals[k] * (uint64_t)bvals[k]);
+        v_i64 r = uv_mul_i64(uv_dup_i64(avals[k]), uv_dup_i64(bvals[k]));
+        int64_t dst[uv_lanes(64)];
+        uv_storeu_i64(dst, r);
+        for (int i = 0; i < uv_lanes(64); i++) {
+            assert(dst[i] == expected);
+        }
+    }
+
+    report("i64 Mul large operands", true);
+}
+
+/**
+ * uv_min/uv_max on i64 with negative operands (earlier tests used
+ * non-negative data only, which cannot catch sign-handling bugs).
+ */
+void test_minmax_i64_negative() {
+    static const int64_t vals[] = {
+        -5, 3, INT64_MIN + 1, INT64_MAX, -1, 0, 7, -7
+    };
+    const int n = (int)(sizeof(vals) / sizeof(vals[0]));
+    for (int k = 0; k < n; k++) {
+        for (int j = 0; j < n; j++) {
+            v_i64 mn = uv_min_i64(uv_dup_i64(vals[k]), uv_dup_i64(vals[j]));
+            v_i64 mx = uv_max_i64(uv_dup_i64(vals[k]), uv_dup_i64(vals[j]));
+            int64_t dmn[uv_lanes(64)], dmx[uv_lanes(64)];
+            uv_storeu_i64(dmn, mn);
+            uv_storeu_i64(dmx, mx);
+            for (int i = 0; i < uv_lanes(64); i++) {
+                assert(dmn[i] == _MIN(vals[k], vals[j]));
+                assert(dmx[i] == _MAX(vals[k], vals[j]));
+            }
+        }
+    }
+
+    report("i64 Min/Max negatives", true);
+}
+
+/**
+ * Aligned load/store paths (uv_load_ and uv_store_) with properly aligned
+ * buffers, since only the unaligned variants were covered.
+ */
+void test_aligned_access() {
+    alignas(uv_alignment()) float af[uv_lanes(32)];
+    alignas(uv_alignment()) double ad[uv_lanes(64)];
+    // Destinations must be aligned too: uv_store_* are aligned stores on
+    // SSE2/AVX2 (storing to an unaligned array would fault).
+    alignas(uv_alignment()) float fdst[uv_lanes(32)];
+    alignas(uv_alignment()) double ddst[uv_lanes(64)];
+    for (int i = 0; i < uv_lanes(32); i++) af[i] = (float)i + 0.25f;
+    for (int i = 0; i < uv_lanes(64); i++) ad[i] = (double)i + 0.5;
+
+    uv_store_f32(fdst, uv_load_f32(af));
+    for (int i = 0; i < uv_lanes(32); i++) assert(fdst[i] == af[i]);
+
+    uv_store_f64(ddst, uv_load_f64(ad));
+    for (int i = 0; i < uv_lanes(64); i++) assert(ddst[i] == ad[i]);
+
+    report("Aligned load/store", true);
+}
+
 int main() {
     printf("Starting UVX SIMD Test Suite...\n");
     printf("Target: UV_REGISTERS=%d, UV_REGISTER_WIDTH=%d\n\n", UV_REGISTERS, UV_REGISTER_WIDTH);
@@ -1390,10 +1858,22 @@ int main() {
     test_i32_logic();
 
     test_i8_complex();
+    test_i8_compress_select();
     test_reductions();
     test_bit_ops();
+
+    // Regression tests for issues found in review
+    test_testz_semantics();
+    test_abs_i64_edge();
+    test_shr_i64_edges();
+    test_shift_i32_edges();
+    test_floor_ceil();
+    test_not_nan();
+    test_cvt_roundtrip();
+    test_mul_i64_large();
+    test_minmax_i64_negative();
+    test_aligned_access();
 
     printf("\nAll tests passed successfully.\n");
     return 0;
 }
-
